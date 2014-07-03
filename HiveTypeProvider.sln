@@ -1,7 +1,9 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio 2012
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "HiveTypeProvider", "HiveTypeProvider\HiveTypeProvider.fsproj", "{23B3C8A9-4597-4B63-A87C-82B318DBAE3B}"
+# Visual Studio 2013
+VisualStudioVersion = 12.0.30501.0
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "HiveTypeProvider", "src\HiveTypeProvider\HiveTypeProvider.fsproj", "{23B3C8A9-4597-4B63-A87C-82B318DBAE3B}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
