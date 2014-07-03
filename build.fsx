@@ -21,7 +21,7 @@ open System
 
 // The name of the project 
 // (used by attributes in AssemblyInfo, name of a NuGet package and directory in 'src')
-let project = "FSharp.ProjectTemplate"
+let project = "FSharp.Data.HiveProvider"
 
 // Short summary of the project
 // (used as description in AssemblyInfo and as a short summary for NuGet package)
@@ -39,7 +39,7 @@ let tags = "F# fsharp tags which describe your project"
 
 // File system information 
 // (<solutionFile>.sln is built during the building process)
-let solutionFile  = "FSharp.ProjectScaffold"
+let solutionFile  = "FSharp.Data.HiveProvider"
 // Pattern specifying assemblies to be tested using NUnit
 let testAssemblies = "tests/**/bin/Release/*Tests*.dll"
 
@@ -47,7 +47,7 @@ let testAssemblies = "tests/**/bin/Release/*Tests*.dll"
 // The profile where the project is posted 
 let gitHome = "https://github.com/fsprojects"
 // The name of the project on GitHub
-let gitName = "FSharp.ProjectScaffold"
+let gitName = "FSharp.Data.HiveProvider"
 
 // --------------------------------------------------------------------------------------
 // END TODO: The rest of the file includes standard build steps 
@@ -59,7 +59,7 @@ let release = parseReleaseNotes (IO.File.ReadAllLines "RELEASE_NOTES.md")
 
 // Generate assembly info files with the right version & up-to-date information
 Target "AssemblyInfo" (fun _ ->
-  let fileName = "src/" + project + "/AssemblyInfo.fs"
+  let fileName = "src/HiveTypeProvider/AssemblyInfo.fs"
   CreateFSharpAssemblyInfo fileName
       [ Attribute.Title project
         Attribute.Product project
