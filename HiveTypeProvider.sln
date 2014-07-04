@@ -37,6 +37,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{EBA5E244
 	EndProjectSection
 EndProject
 Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FSharp.Data.HiveProvider.Tests", "tests\FSharp.Data.HiveProvider.Tests\FSharp.Data.HiveProvider.Tests.fsproj", "{E789C72A-5CFD-436B-8EF1-61AA2852A89F}"
+	ProjectSection(ProjectDependencies) = postProject
+		{23B3C8A9-4597-4B63-A87C-82B318DBAE3B} = {23B3C8A9-4597-4B63-A87C-82B318DBAE3B}
+	EndProjectSection
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution

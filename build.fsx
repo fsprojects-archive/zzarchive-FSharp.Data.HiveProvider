@@ -39,7 +39,7 @@ let tags = "F# fsharp tags which describe your project"
 
 // File system information 
 // (<solutionFile>.sln is built during the building process)
-let solutionFile  = "FSharp.Data.HiveProvider"
+let solutionFile  = "HiveTypeProvider"
 // Pattern specifying assemblies to be tested using NUnit
 let testAssemblies = "tests/**/bin/Release/*Tests*.dll"
 
