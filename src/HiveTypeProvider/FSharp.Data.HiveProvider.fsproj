@@ -30,7 +30,7 @@
     <OutputPath>..\..\bin\</OutputPath>
     <DefineConstants>TRACE</DefineConstants>
     <WarningLevel>3</WarningLevel>
-    <DocumentationFile>..\..\bin\FSharp.Data.HiveProvider.xml</DocumentationFile>
+    <DocumentationFile>..\..\bin\HiveTypeProvider.xml</DocumentationFile>
   </PropertyGroup>
   <PropertyGroup>
     <MinimumVisualStudioVersion Condition="'$(MinimumVisualStudioVersion)' == ''">11</MinimumVisualStudioVersion>
@@ -53,6 +53,7 @@
     <Compile Include="ProvidedTypes-0.4.fs" />
     <Compile Include="HiveTypeProvider.fs" />
     <None Include="DeployNugetPackage.fsx" />
+    <None Include="Samples.fsx" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="FSharp.Core, Version=$(TargetFSharpCoreVersion), Culture=neutral, PublicKeyToken=b03f5f7f11d50a3a">
