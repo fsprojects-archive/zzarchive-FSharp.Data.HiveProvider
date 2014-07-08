@@ -1,4 +1,4 @@
-﻿module HiveTypeProvider
+﻿module Hive.HiveRuntime
 
 open System.Reflection
 open System.Linq.Expressions

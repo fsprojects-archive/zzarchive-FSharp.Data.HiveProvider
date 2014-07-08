@@ -1,6 +1,6 @@
 ﻿module FSharp.Data.HiveProvider.Tests
 
-open HiveTypeProvider
+open Hive.HiveRuntime
 open NUnit.Framework
 open System.Data.Odbc
 
