@@ -1,0 +1,206 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>HiveDataContext - FSharp.Data.HiveProvider</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content=""/>
+    <meta name="author" content="Your Name"/>
+
+    <script src="https://code.jquery.com/jquery-1.8.0.js"></script>
+    <script src="https://code.jquery.com/ui/1.8.23/jquery-ui.js"></script>
+    <script src="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/js/bootstrap.min.js"></script>
+    <link href="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/css/bootstrap-combined.min.css" rel="stylesheet"/>
+
+    <link type="text/css" rel="stylesheet" href="/FSharp.Data.HiveProvider/content/style.css" />
+    <script type="text/javascript" src="/FSharp.Data.HiveProvider/content/tips.js"></script>
+    <!-- HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="https://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="container">
+      <div class="masthead">
+        <ul class="nav nav-pills pull-right">
+          <li><a href="http://fsharp.org">fsharp.org</a></li>
+          <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider">github page</a></li>
+        </ul>
+        <h3 class="muted"><a href="/FSharp.Data.HiveProvider/index.html">FSharp.Data.HiveProvider</a></h3>
+      </div>
+      <hr />
+      <div class="row">
+        <div class="span9" id="main">
+          
+
+
+
+<h1>HiveDataContext</h1>
+<div class="xmldoc">
+<p>The base type for a connection to the Hive data store.</p>
+</div>
+  <h3>Constructors</h3>
+  <table class="table table-bordered member-list">
+    <thead>
+      <tr><td>Constructor</td><td>Description</td></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '58', 58)" onmouseover="showTip(event, '58', 58)">
+            new(...)
+          </code>
+          <div class="tip" id="58">
+            <strong>Signature:</strong> (dsn:string * defaultQueryTimeout:int&lt;s&gt; * defaultMetadataTimeout:int&lt;s&gt; * useUnitAnnotations:bool) -&gt; HiveDataContext<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+        
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L969-969" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+  <h3>Instance members</h3>
+  <table class="table table-bordered member-list">
+    <thead>
+      <tr><td>Instance member</td><td>Description</td></tr>
+    </thead>
+    <tbody>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '65', 65)" onmouseover="showTip(event, '65', 65)">
+            ExecuteCommand(command, ?timeout)
+          </code>
+          <div class="tip" id="65">
+            <strong>Signature:</strong> (command:string * timeout:int&lt;s&gt; option) -&gt; int<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+        
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L1023-1023" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '68', 68)" onmouseover="showTip(event, '68', 68)">
+            GetTable(tableName)
+          </code>
+          <div class="tip" id="68">
+            <strong>Signature:</strong> tableName:string -&gt; HiveTable&lt;&#39;T&gt;<br />
+                          <strong>Type parameters:</strong> 'T          </div>
+        </td>
+        <td class="xmldoc">
+        
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L1019-1019" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '69', 69)" onmouseover="showTip(event, '69', 69)">
+            GetTableDescription(tableName)
+          </code>
+          <div class="tip" id="69">
+            <strong>Signature:</strong> tableName:string -&gt; string<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+        <p>Dynamically read the table description from the Hive data store.</p>
+
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L1014-1014" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '70', 70)" onmouseover="showTip(event, '70', 70)">
+            GetTableNames()
+          </code>
+          <div class="tip" id="70">
+            <strong>Signature:</strong> unit -&gt; string []<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+        <p>Dynamically read the table names from the Hive data store</p>
+
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L996-996" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '71', 71)" onmouseover="showTip(event, '71', 71)">
+            GetTablePartitionNames(tableName)
+          </code>
+          <div class="tip" id="71">
+            <strong>Signature:</strong> tableName:string -&gt; string []<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+        <p>Dynamically read the table names from the Hive data store</p>
+
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L1002-1002" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '72', 72)" onmouseover="showTip(event, '72', 72)">
+            GetTableSchema(tableName)
+          </code>
+          <div class="tip" id="72">
+            <strong>Signature:</strong> tableName:string -&gt; HiveTableSchema<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+        <p>Dynamically read the table names from the Hive data store</p>
+
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L1008-1008" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+      <tr>
+        <td class="member-name">
+
+          <code onmouseout="hideTip(event, '73', 73)" onmouseover="showTip(event, '73', 73)">
+            GetTableUntyped(tableName)
+          </code>
+          <div class="tip" id="73">
+            <strong>Signature:</strong> tableName:string -&gt; HiveTable&lt;HiveDataRow&gt;<br />
+                      </div>
+        </td>
+        <td class="xmldoc">
+        
+            <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/tree/master/src/HiveTypeProvider/HiveTypeProvider.fs#L1021-1021" class="github-link">Go to GitHub source</a>
+        </td>
+      </tr>
+    </tbody>
+  </table>
+
+        </div>
+        <div class="span3">
+          <img src="/FSharp.Data.HiveProvider/img/logo.png" alt="F# Project" style="width:150px;margin:10px" />  
+          <ul class="nav nav-list" id="menu" style="margin-top: 20px;">
+            <li class="nav-header">FSharp.Data.HiveProvider</li>
+            <li><a href="/FSharp.Data.HiveProvider/index.html">Home page</a></li>
+            <li class="divider"></li>
+            <li><a href="<add later>">Get Library via NuGet</a></li>
+            <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider">Source Code on GitHub</a></li>
+            <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/blob/master/LICENSE.txt">License</a></li>
+            <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/blob/master/RELEASE_NOTES.md">Release Notes</a></li>
+            
+            <li class="nav-header">Getting started</li>
+            <li><a href="/FSharp.Data.HiveProvider/tutorial.html">Sample tutorial</a></li>
+
+            <li class="nav-header">Documentation</li>
+            <li><a href="/FSharp.Data.HiveProvider/reference/index.html">API Reference</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png" alt="Fork me on GitHub"/></a>
+  </body>
+  </html>
