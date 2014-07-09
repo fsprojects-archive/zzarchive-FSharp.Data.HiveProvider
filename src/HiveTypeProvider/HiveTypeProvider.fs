@@ -1,4 +1,4 @@
-﻿module HiveTypeProvider
+﻿module Hive.HiveRuntime
 
 open System.Reflection
 open System.Linq.Expressions
@@ -2122,6 +2122,8 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
     let ns = "Hive"
 
     let asm = Assembly.GetExecutingAssembly()
+// This is interpreted by the preprocessor, which runs before the compiler itself.
+// Symbols of the conditional must be defined by the command line or in the project settings.
 #if UNITS_OF_MEASURE
     /// Translate information about a unit of measure into F# unit type annotations
     let rec translateUnit u =
@@ -2190,7 +2192,7 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
                 if String.IsNullOrWhiteSpace dsn then failwith "DSN is required" 
                 let param = (dsn,metadataTimeout)
 
-                let root = ProvidedTypeDefinition(asm, ns, typeName, baseType = Some typeof<obj>, HideObjectMethods = true) 
+                let root = ProvidedTypeDefinition(asm, ns, typeName, baseType = Some typeof<obj>, HideObjectMethods = true) //smth about GetDataContext
                 let containerForRowTypes = ProvidedTypeDefinition("DataTypes", baseType = Some typeof<obj>, HideObjectMethods = true) 
                 root.AddMember(containerForRowTypes)
                 let dataServiceType = ProvidedTypeDefinition("DataService", baseType = Some typeof<obj>, HideObjectMethods = true) 
