@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8"/>
+    <title>operators</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <meta name="description" content="Easily query your Hive database in F# projects"/>
+    <meta name="author" content="moloneymb"/>
+
+    <script src="https://code.jquery.com/jquery-1.8.0.js"></script>
+    <script src="https://code.jquery.com/ui/1.8.23/jquery-ui.js"></script>
+    <script src="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/js/bootstrap.min.js"></script>
+    <link href="https://netdna.bootstrapcdn.com/twitter-bootstrap/2.2.1/css/bootstrap-combined.min.css" rel="stylesheet"/>
+
+    <link type="text/css" rel="stylesheet" href="/FSharp.Data.HiveProvider/content/style.css" />
+    <script type="text/javascript" src="/FSharp.Data.HiveProvider/content/tips.js"></script>
+    <!-- HTML5 shim, for IE6-8 support of HTML5 elements -->
+    <!--[if lt IE 9]>
+      <script src="https://html5shim.googlecode.com/svn/trunk/html5.js"></script>
+    <![endif]-->
+  </head>
+  <body>
+    <div class="container">
+      <div class="masthead">
+        <ul class="nav nav-pills pull-right">
+          <li><a href="http://fsharp.org">fsharp.org</a></li>
+          <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider">github page</a></li>
+        </ul>
+        <h3 class="muted"><a href="/FSharp.Data.HiveProvider/index.html">FSharp.Data.HiveProvider</a></h3>
+      </div>
+      <hr />
+      <div class="row">
+        <div class="span9" id="main">
+          
+<p>Here are the constructs allowed in expression position for where, select etc. 
+They are translated to Hive query expression constructs, see the table in the Apache docs [link].</p>
+
+<p>There are some bugs in the translation of these, they have not all been tested. For example Replace doesn't seem to be recognized by Hive. If you spot problems please either 
+fix them or submit a pull request to update the notes column.</p>
+
+<table>
+<thead>
+<tr class="header">
+<th><p>F# expression consutrct</p></th>
+<th><p>Hive query cosntruct</p></th>
+<th><p>Note</p></th>
+</tr>
+</thead>
+<tbody>
+<tr class="odd">
+<td><p>s.Length</p></td>
+<td><p>LENGTH(s)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.StartsWith(arg)</p></td>
+<td><p>s LIKE(arg%)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>s.EndsWith(arg)</p></td>
+<td><p>s LIKE(%arg)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.Contains(arg)</p></td>
+<td><p>s LIKE(%arg%)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>s.ToUpper()</p></td>
+<td><p>UPPER(s)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.ToLower()</p></td>
+<td><p>LOWER(s)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>System.String.IsNullOrEmpty(s)</p></td>
+<td><p>s IS NULL OR s=""</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.Replace("a","b")</p></td>
+<td><p>REPLACE(s,'a','b')</p></td>
+<td><p>Not working</p></td>
+</tr>
+<tr class="odd">
+<td><p>s.Substring(start)</p></td>
+<td><p>SUBSTRING(s, start, 8000)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.Substring(start, length)</p></td>
+<td><p>SUBSTRING(s, start, length)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>s.Remove(start)</p></td>
+<td><p>STUFF(s, start, 8000)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.Remove(start, length)</p></td>
+<td><p>STUFF(s, start, length)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>s.IndexOf(arg)</p></td>
+<td><p>CHARINDEX(arg, s)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.IndexOf(arg, start)</p></td>
+<td><p>CHARINDEX(arg, s, start)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>s.Trim</p></td>
+<td><p>RTRIM(LTRIM(s))</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>s.TrimEnd</p></td>
+<td><p>RTRIM(s)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>s.TrimStart</p></td>
+<td><p>LTRIM(s)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>a + b</p></td>
+<td><p>a + b</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>a - b</p></td>
+<td><p>a - b</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>a * b</p></td>
+<td><p>a * b</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>a / b</p></td>
+<td><p>a / b</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>a % b</p></td>
+<td><p>a % b</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>-a</p></td>
+<td><p>-a</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>a <em></em> b</p></td>
+<td><p>POWER(a,b)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>ceil x</p></td>
+<td><p>CEILING(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>floor x</p></td>
+<td><p>FLOOR(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>round x</p></td>
+<td><p>ROUND(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>System.Decimal.Round(x, numberOfDecimalsToRoundTo)</p></td>
+<td><p>ROUND(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>truncate x</p></td>
+<td><p>ROUND(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>abs x</p></td>
+<td><p>ABS(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>acos x</p></td>
+<td><p>ACOS(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>asin x</p></td>
+<td><p>ASIN(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>atan x</p></td>
+<td><p>ATAN(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>cos x</p></td>
+<td><p>COS(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>exp x</p></td>
+<td><p>EXP(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>log10 x</p></td>
+<td><p>LOG10(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>sin x</p></td>
+<td><p>SIN(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>tan x</p></td>
+<td><p>TAN(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>sqrt x</p></td>
+<td><p>SQRT(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>sign x</p></td>
+<td><p>SIGN(x)</p></td>
+<td></td>
+</tr>
+<tr class="odd">
+<td><p>atan2 x</p></td>
+<td><p>ATAN2(x)</p></td>
+<td></td>
+</tr>
+<tr class="even">
+<td><p>log2 x</p></td>
+<td><p>LOG2(x)</p></td>
+<td></td>
+</tr>
+</tbody>
+</table>
+
+
+
+        </div>
+        <div class="span3">
+          <img src="/FSharp.Data.HiveProvider/img/logo.png" alt="F# Project" style="width:150px;margin:10px" />  
+          <ul class="nav nav-list" id="menu" style="margin-top: 20px;">
+            <li class="nav-header">FSharp.Data.HiveProvider</li>
+            <li><a href="/FSharp.Data.HiveProvider/index.html">Home page</a></li>
+            <li class="divider"></li>
+            <li><a href="FSharp.Data.HiveProvider">Get Library via NuGet</a></li>
+            <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider">Source Code on GitHub</a></li>
+            <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/blob/master/LICENSE.txt">License</a></li>
+            <li><a href="http://github.com/fsprojects/FSharp.Data.HiveProvider/blob/master/RELEASE_NOTES.md">Release Notes</a></li>
+            
+            <li class="nav-header">Getting started</li>
+            <li><a href="/FSharp.Data.HiveProvider/tutorial.html">Tutorial: Simple Hive queries</a></li>
+
+            <li class="nav-header">Documentation</li>
+            <li><a href="/FSharp.Data.HiveProvider/reference/index.html">API Reference</a> (incomplete)</li>
+            <li><a href="/FSharp.Data.HiveProvider/operators.html">Available operators</a></li>
+          </ul>
+        </div>
+      </div>
+    </div>
+    <a href="http://github.com/fsprojects/FSharp.Data.HiveProvider"><img style="position: absolute; top: 0; right: 0; border: 0;" src="https://s3.amazonaws.com/github/ribbons/forkme_right_gray_6d6d6d.png" alt="Fork me on GitHub"/></a>
+  </body>
+  </html>
