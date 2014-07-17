@@ -154,10 +154,10 @@ Target "All" DoNothing
   ==> "RestorePackages"
   ==> "AssemblyInfo"
   ==> "Build"
-  ==> "NuGet"
   ==> "All"
 
 "All" 
+  ==> "NuGet"
   ==> "RunTests"
   ==> "Release"
 
