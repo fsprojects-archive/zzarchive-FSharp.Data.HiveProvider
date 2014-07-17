@@ -26,7 +26,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{5917C7FA
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "content", "content", "{217A61D6-EE39-4B92-8752-6BFFB03D487B}"
 	ProjectSection(SolutionItems) = preProject
+		contributions.fsx = contributions.fsx
 		docs\content\index.fsx = docs\content\index.fsx
+		operators.fsx = operators.fsx
 		docs\content\tutorial.fsx = docs\content\tutorial.fsx
 	EndProjectSection
 EndProject
@@ -34,11 +36,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tools", "tools", "{EBA5E244
 	ProjectSection(SolutionItems) = preProject
 		docs\tools\generate.fsx = docs\tools\generate.fsx
 		docs\tools\packages.config = docs\tools\packages.config
-	EndProjectSection
-EndProject
-Project("{F2A71F9B-5D33-465A-A702-920D77279786}") = "FSharp.Data.HiveProvider.Tests", "tests\FSharp.Data.HiveProvider.Tests\FSharp.Data.HiveProvider.Tests.fsproj", "{E789C72A-5CFD-436B-8EF1-61AA2852A89F}"
-	ProjectSection(ProjectDependencies) = postProject
-		{23B3C8A9-4597-4B63-A87C-82B318DBAE3B} = {23B3C8A9-4597-4B63-A87C-82B318DBAE3B}
 	EndProjectSection
 EndProject
 Global
@@ -51,10 +48,6 @@ Global
 		{23B3C8A9-4597-4B63-A87C-82B318DBAE3B}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{23B3C8A9-4597-4B63-A87C-82B318DBAE3B}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{23B3C8A9-4597-4B63-A87C-82B318DBAE3B}.Release|Any CPU.Build.0 = Release|Any CPU
-		{E789C72A-5CFD-436B-8EF1-61AA2852A89F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{E789C72A-5CFD-436B-8EF1-61AA2852A89F}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{E789C72A-5CFD-436B-8EF1-61AA2852A89F}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{E789C72A-5CFD-436B-8EF1-61AA2852A89F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -62,6 +55,5 @@ Global
 	GlobalSection(NestedProjects) = preSolution
 		{217A61D6-EE39-4B92-8752-6BFFB03D487B} = {82DEE833-B64D-4FC5-945D-37F2B31B039A}
 		{EBA5E244-2E94-474F-9F7F-0F672C4773B9} = {82DEE833-B64D-4FC5-945D-37F2B31B039A}
-		{E789C72A-5CFD-436B-8EF1-61AA2852A89F} = {5917C7FA-477C-4E99-BED4-F3C23C092CEE}
 	EndGlobalSection
 EndGlobal

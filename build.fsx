@@ -25,17 +25,16 @@ let project = "FSharp.Data.HiveProvider"
 
 // Short summary of the project
 // (used as description in AssemblyInfo and as a short summary for NuGet package)
-let summary = "A short summary of your project."
+let summary = "Easily query your Hive database in F# projects"
 
 // Longer description of the project
 // (used as a description for NuGet package; line breaks are automatically cleaned up)
 let description = """
-  A lengthy description of your project. 
-  This can have multiple lines and will be cleaned up. """
+    Easily query your Hive database in F# projects"""
 // List of author names (for NuGet package)
-let authors = [ "Your Name" ]
+let authors = [ "moloneymb" ]
 // Tags for your project (for NuGet package)
-let tags = "F# fsharp tags which describe your project"
+let tags = "fsharp typeprovider bigdata hive hadoop"
 
 // File system information 
 // (<solutionFile>.sln is built during the building process)
@@ -159,10 +158,12 @@ Target "All" DoNothing
   ==> "All"
 
 "All" 
+  ==> "NuGet"
+  ==> "Release"
+
+"All" 
   ==> "CleanDocs"
   ==> "GenerateDocs"
   ==> "ReleaseDocs"
-  ==> "NuGet"
-  ==> "Release"
 
 RunTargetOrDefault "All"

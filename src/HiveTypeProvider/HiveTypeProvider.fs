@@ -31,47 +31,11 @@ open FSharp.ProvidedTypes
 
 
 [<AutoOpen>]
-module HiveSchema =
+module (*internal*) HiveSchema =
 
     let inline (|Value|Null|) (x:System.Nullable<_>) = if x.HasValue then Value x.Value else Null 
     let inline Value x = System.Nullable x
     let inline Null<'T when 'T : (new : unit -> 'T) and 'T : struct and 'T :> System.ValueType> = System.Nullable<'T>()
-
-    // Algebra of units, may currently include non-SI units
-    // CLEANUP: make this into normalized SI units that carry their conversion factors, as this is simpler than continually
-    // re-consulting the units table
-    type AnyUnit = 
-        /// Used to infer units in cases where they are not recorded statically
-        | Unknown of AnyUnit option ref 
-        | One
-        | Unit of string
-        | Prod of AnyUnit * AnyUnit
-        | Inv of AnyUnit
-        static member NewVar(useUnitAnnotations) = if useUnitAnnotations then AnyUnit.Unknown (ref None) else AnyUnit.One
-
-//    /// Transform the value 'x' into the corresponding value in SI units. 'dir' indicates the direction of travel.
-//    let inline unitTransformGeneric ofFloat dir u x =
-//        let rec conv dir u x = 
-//            match u with
-//            | AnyUnit.Unknown r -> 
-//                match r.Value with 
-//                // Unsolved, treat as 'One'
-//                | None -> x 
-//                | Some soln -> conv dir soln x
-//            | AnyUnit.One -> x
-//            | AnyUnit.Prod (u1,u2) -> conv dir u1 (conv dir u2 x)
-//            | AnyUnit.Inv u -> conv (not dir) u x
-//            | AnyUnit.Unit unitString  ->
-//                let (_measureAnnotation,multiplier,offset) = Samples.FSharp.FrebaseUnitsOfMeasure.UnitsOfMeasure.unitSearch unitString 
-//
-//                let shift = (match offset with | Some(y) -> ofFloat y | None -> LanguagePrimitives.GenericZero)
-//                if dir then (x + shift) * ofFloat multiplier
-//                else (x / ofFloat multiplier) - shift
-//        conv dir u x
-
-//    let unitTransform32 dir u (x:single) = unitTransformGeneric float32 dir u x
-//    let unitTransform64 dir u (x:double) = unitTransformGeneric float dir u x
-//    let unitTransformDecimal dir u (x:decimal) = unitTransformGeneric decimal dir u x
 
     /// Represents a type of a column in a hive table
     type DBasic =
@@ -79,30 +43,16 @@ module HiveSchema =
         | DInt16
         | DInt32 
         | DInt64
-        | DSingle of AnyUnit 
-        | DDouble of AnyUnit 
-        | DDecimal of AnyUnit 
+        | DSingle 
+        | DDouble 
+        | DDecimal 
         | DBoolean 
         | DAtom 
         | DMap of DBasic * DBasic
-        | DArray of DBasic
-        | DStruct of (string * DBasic) []
+        | DArray of DBasic // note, accessing these columns NYI
+        | DStruct of (string * DBasic) [] // note, accessing these columns NYI
         | DTable of HiveColumnSchema[] // result of 'select *'
         | DString 
-        // Compute unit propagation for multiplication
-        static member (*) (t1:DBasic,t2:DBasic) = 
-            match t1,t2 with 
-            | DSingle u1, DSingle u2 -> DSingle(Prod(u1,u2)) 
-            | DDouble u1, DDouble u2 -> DDouble(Prod(u1,u2)) 
-            | DDecimal u1, DDecimal u2 -> DDecimal(Prod(u1,u2)) 
-            | _ -> t1
-        // Compute unit propagation for division
-        static member (/) (t1:DBasic,t2:DBasic) = 
-            match t1,t2 with 
-            | DSingle u1, DSingle u2 -> DSingle(Prod(u1,Inv u2)) 
-            | DDouble u1, DDouble u2 -> DDouble(Prod(u1,Inv u2)) 
-            | DDecimal u1, DDecimal u2 -> DDecimal(Prod(u1,Inv u2)) 
-            | _ -> t1
 
     and HiveColumnSchema = 
         { HiveName: string
@@ -110,17 +60,17 @@ module HiveSchema =
           HiveType: DBasic
           IsRequired: bool }
 
-    and HiveTableSortKey = 
+    and internal HiveTableSortKey = 
         { Column: string; Order: string }
 
     and HiveTableSchema = 
         { Description: string
           Columns: HiveColumnSchema[]
           PartitionKeys: string[]
-          BucketKeys: string[]
-          SortKeys: HiveTableSortKey[] }
+          //BucketKeys: string[]
+          //SortKeys: HiveTableSortKey[] 
+        }
 
-    let DDate = DString // TODO: check me
 
     let rec formatHiveType ty = 
         match ty with
@@ -138,28 +88,10 @@ module HiveSchema =
         | DStruct _cols -> failwith "struct types: nyi"
         | _ -> failwith (sprintf "unexpected type '%A'" ty)
 
-    let (|Unitized|_|) x = match x with (DSingle u | DDouble u | DDecimal u) -> Some u | _ -> None
-
-    let rec formatHiveUnit u = 
-        match u with 
-        | AnyUnit.Unknown r -> 
-            match r.Value with 
-            | None -> failwith "unknown unit-of-measure in emitted Hive type" 
-            | Some soln -> formatHiveUnit soln
-        | One -> ""
-        | Unit s -> s
-        | Prod (u1,Inv u2) -> formatHiveUnit u1 + "/" + formatHiveUnit u2
-        | Prod (u1,u2) -> formatHiveUnit u1 + "*" + formatHiveUnit u2
-        | Inv u -> "1/" + formatHiveUnit u
-
-    let rec formatHiveComment (ty, req) = 
-        match ty, req with
-        | Unitized One, true -> "(required)"
-        | Unitized One, false -> ""
-        | Unitized u, true -> "(unit="+formatHiveUnit u+", required)"
-        | Unitized u, false -> "(unit="+formatHiveUnit u+")"
-        | _, true -> "(required)"
-        | _ -> "(no comment)"
+    let rec formatHiveComment (req) = 
+        match req with
+        | true -> "(required)"
+        | false -> ""
 
     /// Represents a value in one column of one row in a hive table
     type TVal =
@@ -185,29 +117,23 @@ module HiveSchema =
         | EBinOp of TExpr * string * TExpr * DBasic
         | EFunc of string * TExpr list * DBasic
 
-    and TReln = 
-        | RGeq
-        | RLt
-        | RLeq
-        | RGt
-        | REq
-        | RNeq
-
-
     /// Represents a hive query
     and HiveQueryData = 
         | Table of string * HiveColumnSchema[] 
-        | GroupBy of HiveQueryData  * TExpr
+        | GroupBy of HiveQueryData  * TExpr // Not fully implemented - see comments for #if GROUP_BY below
         | Distinct of HiveQueryData 
         | Where of HiveQueryData * TExpr 
         | Limit of HiveQueryData * int
         | Count of HiveQueryData 
-        // A 'sumBy' or other aggregation operation.
-        // The 'bool' indicates whether the result would get labelled as 'required' if we write the table.
+
+        /// A 'sumBy' or other aggregation operation.
+        /// The 'bool' indicates whether the result would get labelled as 'required' if we write the table.
         | AggregateOpBy of string * HiveQueryData * TExpr * bool
+
         | TableSample of HiveQueryData * int * int
-        // A 'select' operation.
-        // The 'bool' indicates whether the field would get labelled as 'required' if we write the table.
+
+        /// A 'select' operation.
+        /// The 'bool' indicates whether the field would get labelled as 'required' if we write the table.
         | Select of HiveQueryData * (string * TExpr * bool)[] 
 
     let rec typeOfExpr e = 
@@ -226,8 +152,8 @@ module HiveSchema =
     type HiveRequest =
         | GetTableNames
         | GetTablePartitionNames of string
-        | GetTableDescription of string * bool
-        | GetTableSchema of string * bool
+        | GetTableDescription of string 
+        | GetTableSchema of string 
         | GetDataFrame of HiveQueryData * HiveColumnSchema[]
         | ExecuteCommand of string
   
@@ -242,12 +168,7 @@ module HiveSchema =
         | Exception of string
         | CommandResult of int
 
-    type internal HiveQueryUnitSystem = 
-       /// The results are converted to SI, constants deriving from F# are left as SI
-       | SI 
-       /// The results are converted left as non-SI, constants deriving from F# are converted to non-SI
-       | NonSI
-    let rec internal formatExpr useSI expr =
+    let rec internal formatExpr expr =
         match expr with 
         | ETable (_v,_ty) -> "*"
         | EVal (v,ty) -> 
@@ -256,19 +177,6 @@ module HiveSchema =
             | VInt16 (Value n) -> string n
             | VInt32 (Value n) -> string n
             | VInt64 (Value n)  -> string n
-            // TODO check formatting of floating point corner cases
-//            | VSingle (Value n) -> 
-//                 match ty, useSI with 
-//                 | DSingle u, NonSI -> string (unitTransform32 false u n)  
-//                 | _ -> string n 
-//            | VDouble (Value n) -> 
-//                 match ty, useSI with 
-//                 | DSingle u, NonSI -> string (unitTransform64 false u n)  
-//                 | _ -> string n 
-//            | VDecimal (Value n) -> 
-//                 match ty, useSI with 
-//                 | DSingle u, NonSI -> string (unitTransformDecimal false u n)  
-//                 | _ -> string n 
             | VSingle (Value n) -> string n 
             | VDouble (Value n) -> string n 
             | VDecimal (Value n) -> string n 
@@ -287,38 +195,15 @@ module HiveSchema =
             | VDecimal Null -> "null"
             | VBoolean Null -> "null"
             | VMap _ | VArray _ | VStruct _ -> "<nyi: map/array/struct>"
-        | EColumn (nm,ty) -> 
-            // Convert the column from non-SI units into SI units
-//            match ty, useSI with
-//            | DSingle u, SI->
-//                let convF = unitTransform32 true u 1.0f
-//                if convF = 1.0f then nm
-//                else sprintf "%s * %f" nm convF
-//            | DDouble u, SI -> 
-//                let convF = unitTransform64 true u 1.0
-//                if convF = 1.0 then nm
-//                else sprintf "%s * %f" nm convF
-//            | DDecimal u, SI -> 
-//                let convF = unitTransformDecimal true u 1.0M
-//                if convF = 1.0M then nm
-//                else sprintf "%s * %f" nm convF
-//            | _ -> 
-                nm
-        | EBinOp(arg1,op,arg2,_) -> formatExpr useSI arg1 + " " + op  + " " + formatExpr useSI arg2
+        | EColumn (nm,ty) -> nm
+        | EBinOp(arg1,op,arg2,_) -> "(" + formatExpr arg1 + ")" + " " + op  + " " + "(" + formatExpr arg2 + ")"
         | EQuery(q) -> 
-            if formatQueryAux useSI q <> "" then failwith (sprintf "unsupported nested query: %A" q)
-            formatQuerySelect useSI q
-        | EFunc("$id",[e],_) -> formatExpr useSI e // used for changing types
+            if formatQueryAux q <> "" then failwith (sprintf "unsupported nested query: %A" q)
+            formatQuerySelect q
+        | EFunc("$id",[e],_) -> formatExpr e // used for changing types
         | EFunc(op,[],_) -> op 
-        | EFunc(op,args,_) -> op + "(" + (List.map (formatExpr useSI) args |> String.concat ",") + ")"
+        | EFunc(op,args,_) -> op + "(" + (List.map formatExpr args |> String.concat ",") + ")"
 
-    and formatReln = function
-        | REq  -> "="
-        | RGt  -> ">"
-        | RGeq  -> ">="
-        | RLeq  -> "<="
-        | RLt  -> "<"
-        | RNeq  -> "!="
 
     and getTableName q = 
         match q with 
@@ -326,46 +211,46 @@ module HiveSchema =
         | Distinct q2 | GroupBy(q2,_) | AggregateOpBy(_,q2,_,_) | Select(q2,_) | Count(q2) | Limit(q2, _) | Where(q2,_) | TableSample(q2,_,_) -> getTableName q2
 
     // https://cwiki.apache.org/Hive/languagemanual.html
-    and internal formatQuerySelect useSI q = 
+    and internal formatQuerySelect q = 
         match q with 
         | Table(_tableName, _) -> "*"
-        | Select (_q2,colExprs) -> colExprs |> Array.map (fun (_,e,_) -> formatExpr useSI e) |> String.concat ","
-        | AggregateOpBy (op, _q2,selector,_) -> op + "(" + formatExpr useSI selector + ")"
-        | TableSample (q2,_n1,_n2) -> formatQuerySelect useSI q2 
-        | GroupBy (q2,_) -> formatQuerySelect useSI q2 
-        | Limit (q2,_rowCount) -> formatQuerySelect useSI q2
-        | Count (q2) -> "COUNT("+formatQuerySelect useSI q2+")"
-        | Distinct (q2) -> "DISTINCT("+formatQuerySelect useSI q2+")"
-        | Where (q2,_pred) -> formatQuerySelect useSI q2 
+        | Select (_q2,colExprs) -> colExprs |> Array.map (fun (_,e,_) -> formatExpr e) |> String.concat ", "
+        | AggregateOpBy (op, _q2,selector,_) -> op + "(" + formatExpr selector + ")"
+        | TableSample (q2,_n1,_n2) -> formatQuerySelect q2 
+        | GroupBy (q2,_) -> formatQuerySelect q2 
+        | Limit (q2,_rowCount) -> formatQuerySelect q2
+        | Count (q2) -> "COUNT(" + formatQuerySelect q2 + ")"
+        | Distinct (q2) -> "DISTINCT " + formatQuerySelect q2
+        | Where (q2,_pred) -> formatQuerySelect q2 
 
-    and internal formatQueryAux useSI q = 
+    and internal formatQueryAux q = 
         match q with 
         | Table(_tableName,_) -> ""
-        | Select (q2,_colExprs) -> formatQueryAux useSI q2
-        | GroupBy (q2,keyExpr) -> formatQueryAux useSI q2 + " GROUP BY " + formatExpr useSI keyExpr
-        | AggregateOpBy (_op, q2,_selector,_) -> formatQueryAux useSI q2
-        | TableSample (q2,n1,n2) -> formatQueryAux useSI q2 + sprintf " TABLESAMPLE(BUCKET %d OUT OF %d)" n1 n2
-        | Limit (q2,rowCount) -> formatQueryAux useSI q2 + sprintf " LIMIT %i" rowCount
-        | Count (q2) -> formatQueryAux useSI q2
-        | Distinct (q2) -> formatQueryAux useSI q2
-        | Where (q2,pred) -> formatQueryAux useSI q2 + " WHERE " + formatExpr useSI pred
+        | Select (q2,_colExprs) -> formatQueryAux q2
+        | GroupBy (q2,keyExpr) -> formatQueryAux q2 + " GROUP BY " + formatExpr keyExpr
+        | AggregateOpBy (_op, q2,_selector,_) -> formatQueryAux q2
+        | TableSample (q2,n1,n2) -> formatQueryAux q2 + sprintf " TABLESAMPLE(BUCKET %d OUT OF %d)" n1 n2
+        | Limit (q2,rowCount) -> formatQueryAux q2 + sprintf " LIMIT %i" rowCount
+        | Count (q2) -> formatQueryAux q2
+        | Distinct (q2) -> formatQueryAux q2
+        | Where (q2,pred) -> formatQueryAux q2 + " WHERE " + formatExpr pred
 
-    let internal formatQuery useSI q =  
-        "SELECT " + formatQuerySelect useSI q + " FROM " + getTableName q + formatQueryAux useSI q
+    let internal formatQuery q =  
+        "SELECT " + formatQuerySelect q + " FROM " + getTableName q + formatQueryAux q
 
 
-type IHiveDataServer = 
+type internal IHiveDataServer = 
     inherit System.IDisposable
     abstract GetTableNames : unit -> string[]
     abstract GetTablePartitionNames : tableName: string -> string[]
-    abstract GetTableSchema : tableName: string * useUnitAnnotations: bool -> HiveTableSchema
+    abstract GetTableSchema : tableName: string -> HiveTableSchema
     abstract ExecuteCommand : string -> int
     abstract GetDataFrame : HiveQueryData * HiveColumnSchema[] -> TVal[][] 
 
 #nowarn "40" // recursive objects
 
 [<AutoOpen>]
-module DetailedTableDescriptionParser = 
+module internal DetailedTableDescriptionParser = 
     open System
     open System.Collections.Generic
     type Parser<'T> = P of (list<char> -> ('T * list<char>) option)
@@ -543,9 +428,9 @@ module DetailedTableDescriptionParser =
     
     let rec parseHiveType (s:string) = 
         match s with
-        | "float" -> DSingle One
-        | "double" -> DDouble One
-        | "decimal" -> DDecimal One
+        | "float" -> DSingle 
+        | "double" -> DDouble 
+        | "decimal" -> DDecimal 
         | "string" -> DString
         | "int" -> DInt32 
         | "tinyint" -> DInt8
@@ -556,30 +441,24 @@ module DetailedTableDescriptionParser =
         | ConstructedType("array", [arg1]) -> DArray(parseHiveType arg1)
         | _ -> failwith (sprintf "unknown type '%s'" s)
 
-    // Extract the unit and if the field is required (not nullable)
-    // Acceptible forms are unit only (g), required only (required), unit and required (g, required)
-    // required must be at the end and the expression must be the last part of the string
-    let parseHiveColumnAnnotation (desc:string) = 
-        let m = Regex.Match(desc,"\(required\)$") 
-        if m.Success then (None, true) else 
-        let m = Regex.Match(desc,"\(unit=([^\(,)]*)\)$") 
-        if m.Success then (Some m.Groups.[1].Value, false) else
-        let m = Regex.Match(desc,"\(unit=([^\(,)]*), required\)$") 
-        if m.Success then (Some m.Groups.[1].Value, true) else
-        (None,false)
+    // Extract if the field is required (not nullable)
+    let parseHiveColumnAnnotation (desc:string) = (desc.Trim() = "(required)")
+
     type FieldSchema = { Name: string; Type:DBasic; Comment: string }
     type DetailedTableInfo = 
         { PartitionKeys: FieldSchema[]
-          BucketKeys: string[]
-          SortKeys: HiveTableSortKey[]
+          //BucketKeys: string[]
+          //SortKeys: HiveTableSortKey[]
           Columns: FieldSchema[]
           Comment: string }
 
+(*
     /// Get the names of the bucket columns out of the parsed detailed table description
     //bucketCols:[userid]
     let getBucketColumns r = 
        [| match r with 
           | Data.Node("Table",d) ->
+              d.ToList |> printfn "%A"
               match d.TryGet "bucketCols" with 
               | Some (Data.List d2) -> 
                   for v in d2 do 
@@ -607,6 +486,7 @@ module DetailedTableDescriptionParser =
               | _ ->  ()
           | _ ->  () |]
 
+*)
 
     /// Get the partition keys out of the parsed detailed table description
     let getPartitionKeys r = 
@@ -662,11 +542,11 @@ module DetailedTableDescriptionParser =
         |> Option.map (fun r -> 
             { PartitionKeys=getPartitionKeys r; 
               Columns = getFields r 
-              SortKeys = getSortColumns r 
-              BucketKeys = getBucketColumns r 
+              //SortKeys = getSortColumns r 
+              //BucketKeys = getBucketColumns r 
               Comment=getComment r})
 
-type OdbcDataServer(dsn:string,timeout:int<s>) = 
+type internal OdbcDataServer(dsn:string,timeout:int<s>) = 
     let conn = 
             let conn = new OdbcConnection (sprintf "DSN=%s" dsn,ConnectionTimeout=int timeout*1000)
             conn.Open()
@@ -681,30 +561,32 @@ type OdbcDataServer(dsn:string,timeout:int<s>) =
         System.Diagnostics.Debug.WriteLine(sprintf "executing non-query command \"%s\"" cmd)
         let command = conn.CreateCommand(CommandTimeout=int timeout*1000, CommandText=cmd)
         command.ExecuteNonQuery()
-    let GetTableSchema (tableName, useUnitAnnotations) = 
+
+    let GetTableSchema tableName = 
         let xs = 
             [| use reader = runReaderComand (sprintf "DESCRIBE extended %s" tableName) 
                        
-               while reader.Read() do 
+               while reader.Read() && not (String.IsNullOrWhiteSpace (reader.GetString(0))) do 
                     let colName = reader.GetString(0)
-                    match colName with
-                    | "Detailed Table Information" -> 
-                         let detailedInfoText = reader.GetString(1)
-                         match getDetailedTableInfo detailedInfoText with 
-                         | Some detailedInfo -> yield (None, None, Some detailedInfo)
-                         | None -> 
-                            // The comment will be empty if there is no match
-                            let comment = System.Text.RegularExpressions.Regex.Match(detailedInfoText,"parameters:{[^}]*comment=([^}]*)}").Groups.[1].Value
-                            yield (Some(comment),None,None)
+                    // These are the 'simple' description of the table columns. If anything goes wrong
+                    // with parsing the detailed description then we assume there are no partition
+                    // keys and use the information extracted from the simple description instead.
+                    let datatype = parseHiveType (reader.GetString(1).ToLower())
+                    let desc = (if reader.IsDBNull(2) then "" else reader.GetString(2))
+                    yield (None,Some((colName, desc, datatype)),None)
+
+               while reader.Read() && (reader.GetString(0) <> "Detailed Table Information") do 
+                   ()
+
+               let detailedInfoText = reader.GetString(1)
+               match getDetailedTableInfo detailedInfoText with 
+               | Some detailedInfo -> 
+                   yield (None, None, Some detailedInfo)
+               | None -> 
+                   // This case is if we failed to parse the detailed table information
+                   let comment = System.Text.RegularExpressions.Regex.Match(detailedInfoText,"parameters:{[^}]*comment=([^}]*)}").Groups.[1].Value
+                   yield (Some(comment),None,None)
                          
-                    | s when String.IsNullOrWhiteSpace s -> ()
-                    | x -> 
-                        // These are the 'simple' description of the table columns. If anything goes wrong
-                        // with parsing the detailed description then we assume there are no partition
-                        // keys and use the information extracted from the simple description instead.
-                        let datatype = parseHiveType (reader.GetString(1).ToLower())
-                        let desc = (if reader.IsDBNull(2) then "" else reader.GetString(2))
-                        yield (None,Some((x, desc, datatype)),None)
             |] 
         let tableDetailsOpt = xs |> Array.map (fun (_,_,c) -> c) |> Array.tryPick id
         let tableDetails = 
@@ -714,32 +596,33 @@ type OdbcDataServer(dsn:string,timeout:int<s>) =
                 let tableCommentBackup = xs |> Array.map (fun (a,_,_) -> a) |> Array.tryPick id
                 let tableColumnsBackup = xs |> Array.map (fun (_,b,_) -> b) |> Array.choose id
                 { Columns = tableColumnsBackup |> Array.map (fun (a,b,c) -> { Name=a; Type=c; Comment=b })
-                  SortKeys=[| |]
-                  BucketKeys=[| |]
+                  //SortKeys=[| |]
+                  //BucketKeys=[| |]
                   PartitionKeys=[| |]
                   Comment=defaultArg tableCommentBackup ""}
-        let columns = 
-                tableDetails.Columns
-                    //|> Array.map snd 
-                    //|> Array.choose (fun x -> x)
-                    |> Array.map (fun column -> 
-                        let (unit,colRequired) = parseHiveColumnAnnotation column.Comment
-                        let colTypeWithUnit = 
-                            match column.Type, unit with 
-                            | DSingle _, Some u when useUnitAnnotations -> DSingle (AnyUnit.Unit u)
-                            | DDouble _, Some u when useUnitAnnotations -> DDouble (AnyUnit.Unit u)
-                            | DDecimal _, Some u when useUnitAnnotations -> DDecimal (AnyUnit.Unit u)
-                            | dt,_ -> dt
-                        {HiveName=column.Name;Description=column.Comment;HiveType=colTypeWithUnit;IsRequired=colRequired})
-        let partitionKeys = tableDetails.PartitionKeys |> Array.map (fun x -> x.Name)
-        {Columns=columns;Description=tableDetails.Comment;PartitionKeys=partitionKeys;BucketKeys=tableDetails.BucketKeys;SortKeys=tableDetails.SortKeys}
 
-    // TODO: we are getting long pauses on exit of fsc.exe because the ODBC connection pool is 
-    // being finalized. This is really annoying. I don't know what to do about this. Explicitly
-    // closing doesn't help.
+        let columns = 
+            tableDetails.Columns |> Array.map (fun column -> 
+                let colRequired = parseHiveColumnAnnotation column.Comment
+                { HiveName=column.Name 
+                  Description=column.Comment
+                  HiveType=column.Type
+                  IsRequired=colRequired })
+
+        let partitionKeys = tableDetails.PartitionKeys |> Array.map (fun x -> x.Name)
+        { Columns=columns
+          Description=tableDetails.Comment
+          PartitionKeys=partitionKeys
+          //BucketKeys=tableDetails.BucketKeys
+          //SortKeys=tableDetails.SortKeys
+        }
 
     interface IDisposable with 
         member x.Dispose() = 
+            // TODO: we are getting long pauses on exit of fsc.exe and devenv.exe because the ODBC connection pool is 
+            // being finalized. This is really annoying. I don't know what to do about this. Explicitly
+            // closing doesn't help.
+
             //printfn "closing..."
             //System.Data.Odbc.OdbcConnection.ReleaseObjectPool()
             conn.Dispose()
@@ -759,13 +642,13 @@ type OdbcDataServer(dsn:string,timeout:int<s>) =
             [| use reader = runReaderComand "SHOW TABLES" ; 
                while reader.Read() do yield reader.GetString(0)  |]
 
-        member x.GetTableSchema (tableName, useUnitAnnotations) = GetTableSchema (tableName, useUnitAnnotations)
+        member x.GetTableSchema tableName = GetTableSchema tableName
 
         member x.ExecuteCommand (commandText) = runNonQueryComand commandText
 
         member x.GetDataFrame (query, colData) =
-          // Convert the results to SI units
-          let queryText = formatQuery HiveQueryUnitSystem.SI query
+
+          let queryText = formatQuery query
                     
           let table = 
               [| use reader = runReaderComand queryText 
@@ -792,16 +675,16 @@ type OdbcDataServer(dsn:string,timeout:int<s>) =
                           yield colData 
                       |]
               |]
+
           table
 
 
-type Adjustment =  
+type internal Adjustment =  
     | Center
     | Right
     | Left
 
-let hiveHandler (dsn:string) (timeout:int<s>) (msg:HiveRequest) : HiveResult = 
-    //printfn "request to '%s'" cns
+let internal hiveHandler (dsn:string) (timeout:int<s>) (msg:HiveRequest) : HiveResult = 
     try
         async {
           try
@@ -811,8 +694,8 @@ let hiveHandler (dsn:string) (timeout:int<s>) (msg:HiveRequest) : HiveResult =
                 | ExecuteCommand(commandText) -> dataServer.ExecuteCommand(commandText) |> CommandResult
                 | GetTableNames -> dataServer.GetTableNames()|> TableNames
                 | GetTablePartitionNames(tableName) -> dataServer.GetTablePartitionNames(tableName)|> TablePartitionNames
-                | GetTableDescription(tableName,useUnitAnnotations) ->
-                        let table = dataServer.GetTableSchema (tableName,useUnitAnnotations)
+                | GetTableDescription tableName ->
+                        let table = dataServer.GetTableSchema tableName
                         let rows = dataServer.GetDataFrame (Limit(Table(tableName,table.Columns),10), table.Columns)
                         let maxWidth = 30
                         let tableHead  =
@@ -865,8 +748,8 @@ let hiveHandler (dsn:string) (timeout:int<s>) (msg:HiveRequest) : HiveResult =
                             |] |> String.concat "\n"
 
                         TableDescription(table.Description,tableHead)
-                | GetTableSchema(tableName,useUnitAnnotations) ->
-                    TableSchema (dataServer.GetTableSchema (tableName, useUnitAnnotations))
+                | GetTableSchema tableName ->
+                    TableSchema (dataServer.GetTableSchema tableName)
                 | GetDataFrame (query, colData) ->
                     DataFrame (dataServer.GetDataFrame (query, colData))
             return result                                
@@ -877,7 +760,7 @@ let hiveHandler (dsn:string) (timeout:int<s>) (msg:HiveRequest) : HiveResult =
     | ex -> Exception("Error: " + ex.Message + "\n" (* + sprintf "Connection='%s'\n" cns *)  + sprintf "Message='%A'\n" msg + ex.ToString())
 
 
-let HiveRequestInProcess (dsn:string, timeout:int<s>) (req:HiveRequest) = 
+let internal HiveRequestInProcess (dsn:string, timeout:int<s>) (req:HiveRequest) = 
     hiveHandler dsn timeout req
 
 
@@ -890,7 +773,7 @@ module internal StaticHelpers =
             if tab.ContainsKey x then tab.[x] 
             else let a = f x in tab.[x] <- a; a
 
-    let rec computeErasedTypeWithoutNullable(colHiveType) = 
+    let rec computeFSharpTypeWithoutNullable(colHiveType) = 
         match colHiveType with 
         | DInt8  -> typeof<sbyte>
         | DInt16  -> typeof<int16>
@@ -902,15 +785,10 @@ module internal StaticHelpers =
         | DBoolean -> typeof<bool>
         | DString -> typeof<string>
         | DAtom -> failwith "should not need to convert atoms"
-        | DArray(et) -> computeErasedTypeWithoutNullable(et).MakeArrayType()
-        | DMap(dt,rt) -> typedefof<IDictionary<_,_>>.MakeGenericType(computeErasedTypeWithoutNullable dt, computeErasedTypeWithoutNullable rt)
+        | DArray(et) -> computeFSharpTypeWithoutNullable(et).MakeArrayType()
+        | DMap(dt,rt) -> typedefof<IDictionary<_,_>>.MakeGenericType(computeFSharpTypeWithoutNullable dt, computeFSharpTypeWithoutNullable rt)
         | DStruct(_cols) -> failwith "nyi: struct"
         | DTable(_args) -> failwith "evaluating whole table as part of client-side expression"
-
-    let computeErasedType(useRequiredAnnotations,colRequired,colHiveType) = 
-        let ty = computeErasedTypeWithoutNullable colHiveType
-        if (colRequired && useRequiredAnnotations) || not ty.IsValueType then ty
-        else typedefof<Nullable<_>>.MakeGenericType(ty)
 
     let rec colDataOfQuery q = 
         let mkColumn (colName:string, typ, isRequired) = 
@@ -941,7 +819,7 @@ module internal RuntimeHelpers =
         | _ -> failwithf "unexpected message, expected %s, got %+A" exp msg
 
 /// Represents one row retrieved from the Hive data store
-type HiveDataRow internal (dict : System.Collections.Generic.IDictionary<string,obj>) = 
+type HiveDataRow internal (dict : IDictionary<string,obj>) = 
     member __.GetValue<'T> (colName:string) = 
         dict.[colName] :?> 'T
 
@@ -957,17 +835,27 @@ type HiveDataRow internal (dict : System.Collections.Generic.IDictionary<string,
         match <@@ fun (x: (string * obj * bool)[]) -> HiveDataRow("",x) @@> with 
         | Lambdas(_,NewObject(ci,_)) -> ci
         | _ -> failwith "unexpected"
-    static member internal ItemProp = 
-        match <@@ fun (x: HiveDataRow) -> x.[""] @@> with 
-        | Lambdas(_,PropertyGet(_,pi,_)) -> pi
-        | _ -> failwith "unexpected"
         
      override x.ToString() = "{" + ([ for KeyValue(k,v) in dict -> k+"="+string v ] |> String.concat "; ") + "}"
 
 
 /// The base type for a connection to the Hive data store.
-type HiveDataContext (dsn,defaultQueryTimeout,defaultMetadataTimeout,useUnitAnnotations) = 
+type HiveDataContext (dsn,defaultQueryTimeout,defaultMetadataTimeout) = 
+
+    let event = Event<_>()
+
     let executeRequest (requestData :  HiveRequest, timeout) =
+
+        let evData = 
+            match requestData with
+            | HiveRequest.GetDataFrame(queryData,_) -> sprintf "query '%s'" (formatQuery queryData)
+            | HiveRequest.ExecuteCommand (cmd) -> sprintf "command %A" cmd
+            | HiveRequest.GetTableDescription tableName -> sprintf "get table description %s" tableName
+            | HiveRequest.GetTableNames -> sprintf "get table names"
+            | HiveRequest.GetTablePartitionNames table -> sprintf "get table partition names for %s" table
+            | HiveRequest.GetTableSchema table -> sprintf "get table schema for %s" table
+        event.Trigger evData
+
         HiveRequestInProcess(dsn,timeout) requestData
 
     let executeQueryRequest (requestData, queryTimeout) = executeRequest (requestData, defaultArg queryTimeout defaultQueryTimeout)
@@ -990,7 +878,7 @@ type HiveDataContext (dsn,defaultQueryTimeout,defaultMetadataTimeout,useUnitAnno
         | VMap x -> dict (x |> Array.map (fun (x,y) -> getValue x, getValue y)) |> box
 
 
-    member internal __.UseUnitAnnotations = useUnitAnnotations
+    member __.RequestSent = event.Publish
 
     /// Dynamically read the table names from the Hive data store
     member __.GetTableNames () =
@@ -1006,13 +894,13 @@ type HiveDataContext (dsn,defaultQueryTimeout,defaultMetadataTimeout,useUnitAnno
 
     /// Dynamically read the table names from the Hive data store
     member __.GetTableSchema (tableName) =
-        match executeMetadataRequest (GetTableSchema(tableName, useUnitAnnotations), None) with 
+        match executeMetadataRequest (GetTableSchema(tableName), None) with 
         | TableSchema(schema) -> schema
         | data -> RuntimeHelpers.unexpected "GetTableSchema" data
 
     /// Dynamically read the table description from the Hive data store.
     member __.GetTableDescription (tableName) = 
-            match executeMetadataRequest (GetTableDescription(tableName, useUnitAnnotations),None) with
+            match executeMetadataRequest (GetTableDescription(tableName),None) with
             | TableDescription(tableDesc,_tableHead) -> tableDesc
             | data -> RuntimeHelpers.unexpected "TableDescription" data
 
@@ -1077,19 +965,29 @@ and internal IHiveTable =
     abstract TableName : string 
 
 and HiveTable<'T> internal (dataCtxt: HiveDataContext, tableName: string, colData: HiveColumnSchema[]) =
-    // Performance: it would be nice not to have to make this metadata request when creating the table
     inherit HiveQueryable<'T>(dataCtxt, Table(tableName, colData), [], None)
+
     new (dataCtxt: HiveDataContext, tableName: string) = 
+        // Performance: it would be nice not to have to make this metadata request when creating the table
         let colData = dataCtxt.GetTableSchema(tableName).Columns
         new HiveTable<'T>(dataCtxt, tableName, colData)
+
+    /// Get the table name of the Hive table
+    member x.TableName = tableName
+    
+    /// Get the partition names for the Hive table
     member x.GetPartitionNames() = dataCtxt.GetTablePartitionNames(tableName)
+
+    /// Get the schema for the Hive table
     member x.GetSchema() = dataCtxt.GetTableSchema(tableName)
     interface IHiveTable with 
         member x.TableName = tableName
 
+#if GROUP_BY
 and HiveGrouping<'Key,'T> internal (key: 'Key, dataCtxt: HiveDataContext, queryData: HiveQueryData, tailOps: Expr list, timeout: int<s> option) = 
     inherit HiveQueryable<'T>(dataCtxt, queryData, tailOps, timeout)
     member x.Key = key
+#endif
 
 and HiveQueryable<'T> internal (dataCtxt: HiveDataContext, queryData: HiveQueryData, tailOps: Expr list, timeout: int<s> option) = 
 
@@ -1126,25 +1024,11 @@ and HiveQueryable<'T> internal (dataCtxt: HiveDataContext, queryData: HiveQueryD
         member x.TailOps = tailOps
         member x.Timeout = timeout
 
-    interface seq<'T> with 
-          member x.GetEnumerator() = x.Run() :> seq<_> |> fun s -> s.GetEnumerator()
-    interface System.Collections.IEnumerable with 
-          member x.GetEnumerator() = x.Run():> System.Collections.IEnumerable |> fun s -> s.GetEnumerator() 
-
-    override __.ToString() = sprintf "<Hive Query '%s'>" (HiveSchema.formatQuery HiveQueryUnitSystem.SI queryData)
-    member x.GetQueryString() = HiveSchema.formatQuery HiveQueryUnitSystem.SI queryData
-    member x.SumBy(keySelector : 'T -> 'TKey) : 'TKey = ignore keySelector; failwith "the SumBy operator can only be executed on the server"
-(*
-    // TODO: remote implementation of IQueryable
-    interface IQueryable<'T> 
-    interface IQueryable with 
-          member x.Provider = (Seq.readonly x).AsQueryable().Provider
-          member x.Expression =  (Seq.readonly x).AsQueryable().Expression
-          member x.ElementType = (Seq.readonly x).AsQueryable().ElementType
-*)
+    override __.ToString() = sprintf "<Hive Query '%s'>" (HiveSchema.formatQuery queryData)
+    member x.GetQueryString() = HiveSchema.formatQuery queryData
 
 [<AutoOpen>]
-module HiveQuery = 
+module internal HiveQuery = 
     let run (hq: HiveQueryable<'T>) = hq.Run()
     let queryString (hq: HiveQueryable<'T>) = hq.GetQueryString()
 
@@ -1207,11 +1091,12 @@ module internal QuotationUtils =
         | _ -> None
     
     let isNullableTy (ty:Type) = ty.IsGenericType && ty.GetGenericTypeDefinition() = typedefof<Nullable<_>>
+
     /// A column in an intermediate table gets labelled as 'required' if it is a value type
     /// and the F# type for the selected expression is not nullable.
     let isRequiredTy (ty:Type) = ty.IsValueType && not (isNullableTy ty)
 
-type OptionBuilder() = 
+type internal OptionBuilder() = 
     member inline __.Bind(x,f) = match x with None -> None | Some v -> f v
     member inline __.Return x = Some x
     member inline __.ReturnFrom x = x
@@ -1236,44 +1121,23 @@ type internal HiveExpressionTranslator(decodeNestedQuery, dataCtxt:HiveDataConte
     let EString s = EVal (VString s, DString)
     let EInt32 s = EVal (VInt32 (Value s), DInt32)
 
-    let rec unifyUnits ty1 ty2 = 
-        match ty1, ty2 with 
-        | AnyUnit.Unknown rv, AnyUnit.Unknown ru when Object.ReferenceEquals (rv,ru) -> ()
-        | AnyUnit.Unknown ({contents = None} as rv), _ -> rv := Some ty2
-        | _, AnyUnit.Unknown ({contents = None} as rv) -> rv := Some ty1
-        | AnyUnit.Unknown {contents = Some tyv}, _ -> unifyUnits tyv ty2
-        | _, AnyUnit.Unknown {contents = Some tyv} -> unifyUnits ty1 tyv
-        | _, AnyUnit.Unknown ({contents = None} as rv) -> rv := Some ty1
-        // TODO: this is approximate and doesn't implement fully normalizing unit inference/unification
-        | AnyUnit.Prod (u1,u2), AnyUnit.Prod (v1,v2) -> unifyUnits u1 v1; unifyUnits u2 v2
-        | AnyUnit.Inv u, AnyUnit.Inv v -> unifyUnits u v
-        | _ -> ()
-    let rec unifyTypes ty1 ty2 = 
-        match ty1,ty2 with 
-        | DSingle u1, DSingle u2 | DDouble u1, DDouble u2 | DDecimal u1, DDecimal u2 -> unifyUnits u1 u2
-        | DMap (dty1, rty1), DMap (dty2, rty2) -> unifyTypes dty1 dty2; unifyTypes rty1 rty2
-        | DArray ety1, DArray ety2 -> unifyTypes ety1 ety2
-        | DStruct s1, DStruct s2 -> if s1.Length = s2.Length then (s1,s2) ||> Array.iter2 (fun (_,x1) (_,x2) -> unifyTypes x1 x2)
-        | _ -> ()
         
-    let equateTypes e1 e2  = let ty1 = typeOfExpr e1 in let ty2 = typeOfExpr e2 in unifyTypes ty1 ty2; ty1 
-    let (+.) e1 e2  = EBinOp(e1,"+",e2, equateTypes e1 e2)
-    let ( *. ) e1 e2  = EBinOp(e1,"*",e2, typeOfExpr e1 * typeOfExpr e2)
-    let ( %. ) e1 e2  = EBinOp(e1,"%",e2, equateTypes e1 e2)
-    let (/.) e1 e2  = EBinOp(e1,"/",e2, typeOfExpr e1 / typeOfExpr e2)
-    let (-.) e1 e2  = EBinOp(e1,"-",e2, equateTypes e1 e2)
-    let RelOp(e1,op,e2) = unifyTypes (typeOfExpr e1) (typeOfExpr e2); EBinOp(e1,op,e2,DBoolean)
+    let RelOp(e1, op, e2) = EBinOp(e1, op, e2, DBoolean)
+    let (&&.) e1 e2 = RelOp(e1, "AND", e2)
+    let (||.) e1 e2 = RelOp(e1, "OR", e2)
+    let NotOp e1 = EFunc("NOT", [ e1 ], DBoolean)
+    let (+.) e1 e2 = EBinOp(e1, "+", e2, typeOfExpr e1)
+    let ( *. ) e1 e2 = EBinOp(e1, "*", e2, typeOfExpr e1)
+    let (%.) e1 e2 = EBinOp(e1, "%", e2, typeOfExpr e1)
+    let (/.) e1 e2 = EBinOp(e1, "/", e2, typeOfExpr e1)
+    let (-.) e1 e2 = EBinOp(e1, "-", e2, typeOfExpr e1)
+
     let concat es = EFunc("CONCAT", es, DString)
     let colTableByName = dict [ for col in colData  -> col.HiveName, col.HiveType ]
     do assert (List.length auxVars = List.length auxExprs)
     let auxMap = dict (List.zip auxVars auxExprs)
 
 
-    //let evalTable expr = 
-    //    let obj = Microsoft.FSharp.Linq.RuntimeHelpers.LeafExpressionConverter.EvaluateQuotation expr
-    //    match obj with 
-    //    | :? IHiveTable as t -> EString t.TableName
-    //    | _ -> failwithf "The following expression evaluated to a '%s' instead of a HiveTable: %A" (obj.GetType().ToString()) expr
     let rec tryConvExpr e = 
       option {
         match e with 
@@ -1301,9 +1165,10 @@ type internal HiveExpressionTranslator(decodeNestedQuery, dataCtxt:HiveDataConte
             let hiveType = colTableByName.[hiveName]
             return EColumn (hiveName, hiveType) 
 
+#if GROUP_BY
         // Property access g.Key for a group
         | PropertyGet(Some (Var v2), propInfo, []) when tableVar = v2 && propInfo.Name = "Key" && propInfo.DeclaringType.Name = "HiveGrouping`2" -> 
-            return EColumn ("*", colTableByName.["$key"]) // SELECT * FROM table GROUP BY keyExpr;  <-- this selects the key 
+            return EColumn ("*", colTableByName.["$key"]) // SELECT * FROM table GROUP BY keyExpr;  <-- this selects the key (actually, no it doesn't, see comments for #if GROUP_BY below)
 
         // Detect a nested query. The only nested queries we allow are iterating a group 
         // which results from 'GroupBy'
@@ -1319,17 +1184,18 @@ type internal HiveExpressionTranslator(decodeNestedQuery, dataCtxt:HiveDataConte
             // TODO: check the query context and table are the same
             // TODO: check there is no timeout
             return EQuery(hqQueryData)
+#endif
 
         | Int32 d  -> return EVal (VInt32 (Value d), DInt32) 
         | Int64 d  -> return EVal (VInt64 (Value d), DInt64) 
-        | Single d -> return EVal (VSingle (Value d), DSingle (AnyUnit.NewVar(dataCtxt.UseUnitAnnotations))) 
-        | Double d -> return EVal (VDouble (Value d), DDouble (AnyUnit.NewVar(dataCtxt.UseUnitAnnotations))) 
+        | Single d -> return EVal (VSingle (Value d), DSingle)  
+        | Double d -> return EVal (VDouble (Value d), DDouble) 
         | String null -> return EAtom "null"
         | String d -> return EString d 
         | Bool d   -> return EVal (VBoolean (Value d), DBoolean) 
         // Detect constant decimal creations, which get encoded in F#
         | Call(None,mi,[Int32 d1; Int32 d2; Int32 d3; Bool d4; Byte d5]) when mi.Name = "MakeDecimal" -> 
-             return EVal (VDecimal (Value (Decimal(d1,d2,d3,d4,d5))), DDecimal (AnyUnit.NewVar(dataCtxt.UseUnitAnnotations))) 
+             return EVal (VDecimal (Value (Decimal(d1,d2,d3,d4,d5))), DDecimal) 
 
         // Nullable() --> null
         | DefaultValue _ -> return EAtom("null")
@@ -1337,99 +1203,67 @@ type internal HiveExpressionTranslator(decodeNestedQuery, dataCtxt:HiveDataConte
         | NewObject(cinfo,[arg]) when isNullableTy cinfo.DeclaringType -> return! tryConvExpr arg
         // x.Value --> x
         | PropertyGet(Some obj,pinfo,_) when pinfo.Name = "Value" && isNullableTy pinfo.DeclaringType -> return! tryConvExpr obj
-        // TODO: .GetValueOrDefault()        
-
-(*
-        // TODO: these are LINQ methods. Is this the way we want these surfaced?
-        // TODO: these are not tested and won't work because we must extract the name of the table from 'obj'
-        | Call(None,Member "LongCount",[obj]) -> return! unop obj (fun objH -> EFunc("COUNT_BIG",[objH], DInt64))
-        | Call(None,Member "Sum"      ,[obj]) -> return! unop obj (fun objH -> EFunc("SUM",[objH], typeOfExpr objH))
-        | Call(None,Member "Average"  ,[obj]) -> return! unop obj (fun objH -> EFunc("AVG",[objH], typeOfExpr objH))
-        | Call(None,Member "Max"      ,[obj]) -> return! unop obj (fun objH -> EFunc("MAX",[objH], typeOfExpr objH))
-        | Call(None,Member "Min"      ,[obj]) -> return! unop obj (fun objH -> EFunc("MIN",[objH], typeOfExpr objH))
-        | Call(None,Member "Count"    ,[obj]) -> return! unop obj (fun objH -> EFunc("LEN",[objH], DInt32))
-*)
-(*
-
-bigint  count(*), count(expr), count(DISTINCT expr[, expr_.])  count(*) - Returns the total number of retrieved rows, including rows containing NULL values; count(expr) - Returns the number of rows for which the supplied expression is non-NULL; count(DISTINCT expr[, expr]) - Returns the number of rows for which the supplied expression(s) are unique and non-NULL. 
-double  sum(col), sum(DISTINCT col)  Returns the sum of the elements in the group or the sum of the distinct values of the column in the group 
-double  avg(col), avg(DISTINCT col)  Returns the average of the elements in the group or the average of the distinct values of the column in the group 
-double  min(col)  Returns the minimum of the column in the group 
-double  max(col)  Returns the maximum value of the column in the group 
-double  variance(col), var_pop(col)  Returns the variance of a numeric column in the group 
-double  var_samp(col) Returns the unbiased sample variance of a numeric column in the group 
-double  stddev_pop(col)  Returns the standard deviation of a numeric column in the group 
-double  stddev_samp(col)  Returns the unbiased sample standard deviation of a numeric column in the group 
-double  covar_pop(col1, col2)  Returns the population covariance of a pair of numeric columns in the group 
-double covar_samp(col1, col2) Returns the sample covariance of a pair of a numeric columns in the group 
-double  corr(col1, col2) Returns the Pearson coefficient of correlation of a pair of a numeric columns in the group 
-double percentile(BIGINT col, p) Returns the exact pth percentile of a column in the group (does not work with floating point types). p must be between 0 and 1. NOTE: A true percentile can only be computed for integer values. Use PERCENTILE_APPROX if your input is non-integral. 
-array<double> percentile(BIGINT col, array(p1 [, p2]...)) Returns the exact percentiles p1, p2, ... of a column in the group (does not work with floating point types). pi must be between 0 and 1. NOTE: A true percentile can only be computed for integer values. Use PERCENTILE_APPROX if your input is non-integral. 
-double percentile_approx(DOUBLE col, p [, B]) Returns an approximate pth percentile of a numeric column (including floating point types) in the group. The B parameter controls approximation accuracy at the cost of memory. Higher values yield better approximations, and the default is 10,000. When the number of distinct values in col is smaller than B, this gives an exact percentile value. 
-array<double> percentile_approx(DOUBLE col, array(p1 [, p2]...) [, B]) Same as above, but accepts and returns an array of percentile values instead of a single one. 
-array<struct {'x','y'}> histogram_numeric(col, b) Computes a histogram of a numeric column in the group using b non-uniformly spaced bins. The output is an array of size b of double-valued (x,y) coordinates that represent the bin centers and heights 
-array collect_set(col) Returns a set of objects with duplicate elements eliminated 
-
-Rouch sketch:
-module Hive = 
-    min: 'T -> 'T 
-    minNullable: Nullable<'T> -> Nullable<'T>
-    variance: 'T -> 'U when (*) : 'T * 'T -> 'U
-    varianceNullable: 'T -> 'U when (*) : 'T * 'T -> 'U
-    sqrt: float<u^s> -> float<u>
-    sqrtNullable: float<u^s> -> float<u>
-    ...
 
 
-
-
-*)
-
+        // s.Length
         | PropertyGet(Some obj,StringMember "Length",[])         -> return! unop obj (fun objH -> EFunc("LENGTH",[objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "Day",[])         -> return! unop obj (fun objH -> EFunc("DAY",[objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "Month",[])       -> return! unop obj (fun objH -> EFunc("MONTH",[objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "Year",[])        -> return! unop obj (fun objH -> EFunc("YEAR",[objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "Hour",[])        -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "hour";objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "Minute",[])      -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "minute";objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "Second",[])      -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "second";objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "Millisecond",[]) -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "millisecond";objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "DayOfWeek",[])   -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "weekday";objH], DInt32))
-        | PropertyGet(Some obj,DateTimeMember "DayOfYear",[])   -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "dayofyear";objH], DInt32))
-        // TODO: what if user's input contains '%'
+        // dateTime.Day ...
+
+        // TODO: what if user's input contains '%', this is not mentioned in the Hive docs
+        // string.StartsWith("a") ..
         | Call(Some obj,StringMember "StartsWith",[arg1])       -> return! binop obj arg1 (fun objH arg1H -> RelOp(objH,"LIKE", concat [arg1H; EString "%"]))
         | Call(Some obj,StringMember "EndsWith"  ,[arg1])       -> return! binop obj arg1 (fun objH arg1H -> RelOp(objH,"LIKE", concat [EString "%"; arg1H]))
         | Call(Some obj,StringMember "Contains"  ,[arg1])       -> return! binop obj arg1 (fun objH arg1H -> RelOp(objH,"LIKE",concat [EString "%"; arg1H; EString "%"]) )
-        | Call(None,StringMember "IsNullOrEmpty" ,[obj])        -> return! unop obj (fun objH -> RelOp(RelOp(objH,"IS",EAtom("NULL")),"OR",RelOp(objH,"=",EString "")))
+
+        // s.ToUpper() ..
         | Call(Some obj,StringMember "ToUpper"   ,[])           -> return! unop obj (fun objH -> EFunc("UPPER",[objH], DString))
         | Call(Some obj,StringMember "ToLower"   ,[])           -> return! unop obj (fun objH -> EFunc("LOWER",[objH], DString))
-        //    TODO: obj.Concat(foo1,...,fooN) -.> foo1 + ... + fooN
+
+        // System.String.IsNullOrEmpty(stringValue) ..
+        | Call(None,StringMember "IsNullOrEmpty" ,[obj])        -> return! unop obj (fun objH -> RelOp(RelOp(objH,"IS",EAtom("NULL")),"OR",RelOp(objH,"=",EString "")))
+
+
+        // s.Replace("a","b") ..
+
         | Call(Some obj,StringMember "Replace"   ,[arg1; arg2]) -> return! triop obj arg1 arg2 (fun objH arg1H arg2H -> EFunc("REPLACE",[objH;arg1H;arg2H], DString))
+
+        // s.Substring(3)
         | Call(Some obj,StringMember "Substring" ,[arg1])       -> return! binop obj arg1 (fun objH arg1H -> EFunc("SUBSTRING",[objH;arg1H +. EInt32 1;EInt32 8000], DString))
+        // s.Substring(3,5)
         | Call(Some obj,StringMember "Substring" ,[arg1;arg2])  -> return! triop obj arg1 arg2 (fun objH arg1H arg2H -> EFunc("SUBSTRING",[objH;arg1H +. EInt32 1;arg2H], DString))
+
+        // s.Remove(3) 
         | Call(Some obj,StringMember "Remove"    ,[arg1])       -> return! binop obj arg1 (fun objH arg1H -> EFunc("STUFF",[objH;arg1H +. EInt32 1;EInt32 8000], DString))
+        // s.Remove(3,5) 
         | Call(Some obj,StringMember "Remove"    ,[arg1;arg2])  -> return! triop obj arg1 arg2 (fun objH arg1H arg2H -> EFunc("STUFF",[objH;arg1H +. EInt32 1;arg2H], DString))
-        | Call(Some obj,StringMember "IndexOf"   ,[arg1])       -> return! binop obj arg1 (fun objH arg1H -> EFunc("CHARINDEX",[arg1H;objH], DInt32) -. EInt32 1)
-        | Call(Some obj,StringMember "IndexOf"   ,[arg1; arg2]) -> return! triop obj arg1 arg2 (fun objH arg1H arg2H -> EFunc("CHARINDEX",[arg1H;objH;arg2H +. EInt32 1], DInt32) -. EInt32 1)
+        // 
         | Call(Some obj,StringMember "Trim"      ,[])           -> return! unop obj (fun objH -> EFunc("RTRIM",[EFunc("LTRIM",[objH],DString)],DString))
         | Call(Some obj,StringMember "TrimEnd"   ,[])           -> return! unop obj (fun objH -> EFunc("RTRIM",[objH],DString))
         | Call(Some obj,StringMember "TrimStart" ,[])           -> return! unop obj (fun objH -> EFunc("LTRIM",[objH],DString))
-        | Call(None,DateTimeMember "op_Subtraction",[arg1; arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> EFunc("DATEDIFF",[arg1H;arg2H], DDate))
-        | Call(Some obj,DateTimeMember "AddYears"       ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "YYYY";objH;arg1H], DDate))
-        | Call(Some obj,DateTimeMember "AddMonths"      ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "MM";objH;arg1H], DDate))
-        | Call(Some obj,DateTimeMember "AddDays"        ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "DD";objH;arg1H], DDate))
-        | Call(Some obj,DateTimeMember "AddHours"       ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "HH";objH;arg1H], DDate))
-        | Call(Some obj,DateTimeMember "AddMinutes"     ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "MI";objH;arg1H], DDate))
-        | Call(Some obj,DateTimeMember "AddSeconds"     ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "SS";objH;arg1H], DDate))
-        | Call(Some obj,DateTimeMember "AddMilliseconds",[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "MS";objH;arg1H], DDate))
 
+        // a && b   
+        | AndAlso(arg1, arg2) -> return! binop arg1 arg2 (&&.)
+        // a || b   
+        | OrElse(arg1, arg2) -> return! binop arg1 arg2 (||.)
+        // not a 
+        | Call(None,OperatorsMember "Not"     ,[arg1]) -> return! unop arg1 NotOp
+
+        // a + b   (for any type)
         | Call(None,Member "op_Addition"     ,[arg1; arg2]) -> return! binop arg1 arg2 (+.)
+        // a - b   (for any type)
         | Call(None,Member "op_Subtraction"  ,[arg1; arg2]) -> return! binop arg1 arg2 (-.)
+        // a * b   (for any type)
         | Call(None,Member "op_Multiply"     ,[arg1; arg2]) -> return! binop arg1 arg2 ( *. )
+        // a / b   (for any type)
         | Call(None,Member "op_Division"     ,[arg1; arg2]) -> return! binop arg1 arg2 (/.)
+        // a % b   (for any type)
         | Call(None,Member "op_Modulus"      ,[arg1; arg2]) -> return! binop arg1 arg2 (%.) 
+        // -a   (for any type)
         | Call(None,Member "op_UnaryNegation",[arg1]) -> return! unop arg1 (fun arg1H -> EFunc("-",[arg1H],typeOfExpr arg1H))
+        // a ** b   (for any type)
         | Call(None,Member "op_Exponentiation",[arg1; arg2])-> return! binop arg1 arg2 (fun arg1H arg2H -> EFunc("POWER",[arg1H; arg2H], typeOfExpr arg1H)) 
 
+        // System.Decimal.Add(a,b) // note why not do it with '+'??
         | Call(None,DecimalMember "Add"      ,[arg1; arg2]) -> return! binop arg1 arg2 (+.)
         | Call(None,DecimalMember "Subtract" ,[arg1; arg2]) -> return! binop arg1 arg2 (-.)
         | Call(None,DecimalMember "Multiply" ,[arg1; arg2]) -> return! binop arg1 arg2 ( *. )
@@ -1439,21 +1273,34 @@ module Hive =
 
         // TODO: use the correct translation of all conversions. For now assuming the identity function.
         
-        | Call(None,OperatorsMember "ToDouble",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DDouble AnyUnit.One))
-        | Call(None,OperatorsMember "ToDecimal",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DDecimal AnyUnit.One))
-        | Call(None,OperatorsMember "ToSingle",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DSingle AnyUnit.One))
+        // double x
+        | Call(None,OperatorsMember "ToDouble",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DDouble))
+        // decimal x
+        | Call(None,OperatorsMember "ToDecimal",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DDecimal))
+        // single x
+        | Call(None,OperatorsMember "ToSingle",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DSingle))
+        // sbyte x
         | Call(None,OperatorsMember "ToSByte",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DInt8))
+        // int16 x
         | Call(None,OperatorsMember "ToInt16",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DInt16))
+        // int32 x
         | Call(None,OperatorsMember "ToInt32",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DInt32))
+        // int64 x
         | Call(None,OperatorsMember "ToInt64",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("$id",[arg1H], DInt64))
 
-        | Call(None,DecimalMathOrOperatorsMember "Ceiling",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("CEILING",[arg1H],typeOfExpr arg1H))
+        // ceil x
+        | Call(None,DecimalMathOrOperatorsMember "Ceiling",[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("CEILING",[arg1H],typeOfExpr arg1H))  
+        // floor x
         | Call(None,DecimalMathOrOperatorsMember "Floor"  ,[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("FLOOR",[arg1H], typeOfExpr arg1H))
-        | Call(None,DecimalMathOrOperatorsMember "Round"  ,[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("ROUND",[arg1H], typeOfExpr arg1H))
+        // round x
+        | Call(None,DecimalMathOrOperatorsMember "Round"  ,[arg1])  -> return! unop arg1 (fun arg1H -> EFunc("ROUND",[arg1H], typeOfExpr arg1H)) 
+        // System.Decimal.Round(x, howManyDecimalsToRoundTo)
         | Call(None,DecimalMathOrOperatorsMember "Round"  ,[arg1; arg2]) when arg2.Type = typeof<int> -> 
-                                                                       return! binop arg1 arg2 (fun arg1H arg2H -> EFunc("ROUND",[arg1H; arg2H], typeOfExpr arg1H))
+                                                                       return! binop arg1 arg2 (fun arg1H arg2H -> EFunc("ROUND",[arg1H; arg2H], typeOfExpr arg1H)) 
+        // truncate x
         | Call(None,DecimalMathOrOperatorsMember "Truncate",[arg1]) -> return! unop arg1 (fun arg1H -> EFunc("ROUND",[arg1H; EInt32 0; EInt32 1], typeOfExpr arg1H) )
-        // TODO: correct units for these operations, especially 'sqrt' and friends
+
+        // abs x, acos x, asin x, ... etc.
         | Call(None,((DecimalMathOrOperatorsMember "Abs"
                      |DecimalMathOrOperatorsMember "Acos"
                      |DecimalMathOrOperatorsMember "Asin"
@@ -1468,9 +1315,38 @@ module Hive =
                      |DecimalMathOrOperatorsMember "Ceiling"
                      |DecimalMathOrOperatorsMember "Floor") as m) ,[arg1]) -> 
             return! unop arg1 (fun arg1H -> EFunc(m.Name.ToUpper(),[arg1H], typeOfExpr arg1H))
+
+        // atan2 x y 
         | Call(None,DecimalMathOrOperatorsMember "Atan2",[arg1; arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> EFunc("ATAN2",[arg1H; arg2H], typeOfExpr arg1H))
+        // log x 
         | Call(None,DecimalMathOrOperatorsMember "Log"  ,[arg1])       -> return! unop arg1 (fun arg1H -> EFunc("LOG10",[arg1H], typeOfExpr arg1H))
-        | Call(None,DecimalMathOrOperatorsMember "Pow"  ,[arg1;arg2])       -> return! binop arg1 arg2 (fun arg1H arg2H -> EFunc("POWER",[arg1H; arg2H], typeOfExpr arg1H)) 
+
+
+#if DATETIME_SUPPORT
+
+    //let DDate = DString // TODO: check me
+
+// Note, this is a long way from working
+        
+        | PropertyGet(Some obj,DateTimeMember "Day",[])         -> return! unop obj (fun objH -> EFunc("DAY",[objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "Month",[])       -> return! unop obj (fun objH -> EFunc("MONTH",[objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "Year",[])        -> return! unop obj (fun objH -> EFunc("YEAR",[objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "Hour",[])        -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "hour";objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "Minute",[])      -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "minute";objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "Second",[])      -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "second";objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "Millisecond",[]) -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "millisecond";objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "DayOfWeek",[])   -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "weekday";objH], DInt32))
+        | PropertyGet(Some obj,DateTimeMember "DayOfYear",[])   -> return! unop obj (fun objH -> EFunc("DATEPART",[EAtom "dayofyear";objH], DInt32))
+        | Call(None,DateTimeMember "op_Subtraction",[arg1; arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> EFunc("DATEDIFF",[arg1H;arg2H], DDate))
+        | Call(Some obj,DateTimeMember "AddYears"       ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "YYYY";objH;arg1H], DDate))
+        | Call(Some obj,DateTimeMember "AddMonths"      ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "MM";objH;arg1H], DDate))
+        | Call(Some obj,DateTimeMember "AddDays"        ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "DD";objH;arg1H], DDate))
+        | Call(Some obj,DateTimeMember "AddHours"       ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "HH";objH;arg1H], DDate))
+        | Call(Some obj,DateTimeMember "AddMinutes"     ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "MI";objH;arg1H], DDate))
+        | Call(Some obj,DateTimeMember "AddSeconds"     ,[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "SS";objH;arg1H], DDate))
+        | Call(Some obj,DateTimeMember "AddMilliseconds",[arg1]) -> return! binop obj arg1 (fun objH arg1H -> EFunc("DATEADD",[EAtom "MS";objH;arg1H], DDate))
+
+        // new System.DateTime(31,12,2010)
         | NewObject(ci, [arg1;arg2;arg3]) when ci.DeclaringType.FullName = "System.DateTime" ->
                     // TODO: check this one
               return! triop arg1 arg2 arg3 (fun arg1H arg2H arg3H -> 
@@ -1478,7 +1354,9 @@ module Hive =
                                   concat [EFunc("Convert",[EAtom "nvarchar"; arg1H], DString); EString "/"
                                           EFunc("Convert",[EAtom "nvarchar"; arg2H], DString); EString "/"
                                           EFunc("Convert",[EAtom "nvarchar"; arg3H], DString)]], DDate))
-        | NewObject(ci, [arg1;arg2;arg3;arg4;arg5;arg6]) when ci.DeclaringType.FullName = "System.DateTime" ->
+
+        // new System.DateTime(2010,12,31,23,59,59)
+        | NewObject(ci, [arg1;arg2;arg3;arg4;arg5;arg6]) when ci.DeclaringType.FullName = "System.DateTime" ->  
               return! sixop arg1 arg2 arg3 arg4 arg5 arg6 (fun arg1H arg2H arg3H arg4H arg5H arg6H -> 
                     EFunc("Convert", [ EAtom "DateTime"; 
                                        concat [EFunc("Convert",[EAtom "nvarchar"; arg1H], DString); EString "/"
@@ -1488,20 +1366,31 @@ module Hive =
                                                EFunc("Convert",[EAtom "nvarchar"; arg5H], DString); EString ":"
                                                EFunc("Convert",[EAtom "nvarchar"; arg6H], DString)]], DDate))
 
+#endif
+
+        // a = b (any type)
         | Call(None,OperatorsMember "op_Equality"          ,[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, "=", arg2H))
+        // a < b (any type)
         | Call(None,OperatorsMember "op_LessThan"          ,[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, "<", arg2H))
+        // a > b (any type)
         | Call(None,OperatorsMember "op_GreaterThan"       ,[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, ">", arg2H))
         | Call(None,OperatorsMember "op_LessThanOrEqual"   ,[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, "<=", arg2H))
         | Call(None,OperatorsMember "op_GreaterThanOrEqual",[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, ">=", arg2H))
+        // a <> b (any type)
         | Call(None,OperatorsMember "op_Inequality"        ,[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, "!=", arg2H))
 
 
         // Nullable operators x ?= y etc.
+        // a ?= b (any type)
         | Call(None,NullableOperatorsMember "op_QmarkEquals",[arg1;arg2]) 
+        // a ?=? b (any type)
         | Call(None,NullableOperatorsMember "op_QmarkEqualsQmark",[arg1;arg2]) 
+        // a =? b (any type)
         | Call(None,NullableOperatorsMember "op_EqualsQmark",[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, "=", arg2H))
 
+        // a ?< b (any type)
         | Call(None,NullableOperatorsMember "op_QmarkLess",[arg1;arg2]) 
+        // a ?<? b (any type)
         | Call(None,NullableOperatorsMember "op_QmarkLessQmark",[arg1;arg2]) 
         | Call(None,NullableOperatorsMember "op_LessQmark",[arg1;arg2]) -> return! binop arg1 arg2 (fun arg1H arg2H -> RelOp(arg1H, "<", arg2H))
 
@@ -1538,30 +1427,24 @@ module Hive =
         | Call(None,NullableOperatorsMember "op_QmarkDivideQmark",[arg1; arg2]) 
         | Call(None,NullableOperatorsMember "op_DivideQmark",[arg1; arg2]) -> return! binop arg1 arg2 (/.)
 
+        // a ?% b (any type)
         | Call(None,NullableOperatorsMember "op_QmarkPercent",[arg1; arg2]) 
         | Call(None,NullableOperatorsMember "op_QmarkPercentQmark",[arg1; arg2]) 
+        // a %? b (any type)
         | Call(None,NullableOperatorsMember "op_PercentQmark",[arg1; arg2]) -> return! binop arg1 arg2 (%.)
 
 
         | QuotationUtils.MacroReduction reduced -> return! tryConvExpr reduced
-        // TODO:
-        //    obj.ToString() -.> CONVERT(NVARCHAR, obj)
-        //    i.CompareTo(j) -.> (CASE WHEN i = j THEN 0 WHEN i < j THEN -1 ELSE 1 END)
-        //    System.Int32.Compare(i,j) -.> (CASE WHEN i = j THEN 0 WHEN i < j THEN -1 ELSE 1 END)
-        //    a ** b -.> POWER(a,b)
-        //    pown a b -.> POWER(a,b)
-        //    ?????????????? -.> COALESCE(a,b)
-        //    a <<< b -.> (a * POWER(2,b))
-        //    a >>> b -.> (a / POWER(2,b))
-        //    b -.> (CASE WHEN (b) THEN 1 ELSE 0 END)
+
+
         | _ -> 
             let n = if allowEvaluation then try Microsoft.FSharp.Linq.RuntimeHelpers.LeafExpressionConverter.EvaluateQuotation e with _ -> null else null
             match n with 
             | :? Int32 as d -> return EInt32 d 
             | :? Int64  as d -> return EVal (VInt64 (Value d), DInt64) 
-            | :? Single  as d -> return EVal (VSingle (Value d), DSingle (AnyUnit.NewVar(dataCtxt.UseUnitAnnotations))) 
-            | :? Double  as d -> return EVal (VDouble (Value d), DDouble (AnyUnit.NewVar(dataCtxt.UseUnitAnnotations))) 
-            | :? Decimal as d -> return EVal (VDecimal (Value d), DDecimal (AnyUnit.NewVar(dataCtxt.UseUnitAnnotations))) 
+            | :? Single  as d -> return EVal (VSingle (Value d), DSingle) 
+            | :? Double  as d -> return EVal (VDouble (Value d), DDouble) 
+            | :? Decimal as d -> return EVal (VDecimal (Value d), DDecimal) 
             | :? String  as s -> return EString s  
             | :? Boolean as b -> return EVal (VBoolean (Value  b), DBoolean) 
             | _obj -> return! None
@@ -1599,13 +1482,7 @@ module Hive =
         | Some res -> res
         | None -> failwithf "Unrecognized expression: %A" x
 
-    // Loop through conjuncts
-    let rec foldPredicates queryData pq = 
-        match pq with 
-        | AndAlso(cq1,cq2) -> foldPredicates (foldPredicates queryData cq1) cq2
-        | _ -> HiveQueryData.Where(queryData, convExpr pq)
 
-    member x.FoldPredicates queryData pq = foldPredicates queryData pq
     member x.ConvertExpression c = convExpr c
     member x.RecognizeExpression c = 
         let res = tryConvExpr c  |> Option.isSome
@@ -1634,46 +1511,35 @@ type HiveQueryBuilder() =
         match q with 
         | Call(_,mi,[hq;Lambdas([(tableVar::auxVars)],selectorBody)]) when mi.Name = "Select" -> 
             decodeSelect nestedTableOpt canTail (hq,tableVar,auxVars,selectorBody)
-(*
-CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
-  [(col_name data_type [COMMENT col_comment], ...)]
-  [COMMENT table_comment]
-  [PARTITIONED BY (col_name data_type [COMMENT col_comment], ...)]
-  [CLUSTERED BY (col_name, col_name, ...) [SORTED BY (col_name [ASC|DESC], ...)] INTO num_buckets BUCKETS]
-  [SKEWED BY (col_name, col_name, ...) ON ([(col_value, col_value, ...), ...|col_value, col_value, ...]) (Note: only available starting with 0.10.0)]
-  [
-   [ROW FORMAT row_format] [STORED AS file_format]
-   | STORED BY 'storage.handler.class.name' [WITH SERDEPROPERTIES (...)]  (Note: only available starting with 0.6.0)
-  ]
-  [LOCATION hdfs_path]
-  [TBLPROPERTIES (property_name=property_value, ...)]  (Note: only available starting with 0.6.0)
-  [AS select_statement]  (Note: this feature is only available starting with 0.5.0, and is not supported when creating external tables.)
 
-*)
         // newTable tableName expr
         // writeDistributedFile tableName expr
         //
-        // Note: writeLocalFile is disabled, see note below
-        | Call(_,mi,[hq;targetTableNameExpr;Lambdas([tableVar::auxVars],selectorBody)]) when mi.Name = "NewTable" || mi.Name = "WriteLocalFile" || mi.Name = "WriteDistributedFile" -> 
+        // Note: writeHeadNodeFile is disabled, see note below
+        | Call(_,mi,[hq;targetTableNameExpr;Lambdas([tableVar::auxVars],selectorBody)]) when mi.Name = "NewTable" || mi.Name = "WriteHeadNodeFile" || mi.Name = "WriteDistributedFile" -> 
             let (hqCtxt:HiveDataContext), hqQueryData, hqTail, hqTimeout, hqAuxExprsF  = decodeSelect nestedTableOpt false (hq,tableVar,auxVars,selectorBody)
             // Evaluate the name of the table
             let targetTableName = Microsoft.FSharp.Linq.RuntimeHelpers.LeafExpressionConverter.EvaluateQuotation targetTableNameExpr :?> string
             let _tableName,colData = colDataOfQuery hqQueryData
             if mi.Name = "NewTable" then 
-                hqCtxt.ExecuteCommand("DROP TABLE " + targetTableName) |> ignore
-                let columns = [ for c in colData -> c.HiveName + " " + HiveSchema.formatHiveType c.HiveType + " COMMENT 'The column " + c.HiveName + " in the table " + targetTableName + " " + HiveSchema.formatHiveComment (c.HiveType, c.IsRequired) + "'" ] |> String.concat ","
+                try 
+                  hqCtxt.ExecuteCommand("DROP TABLE " + targetTableName) |> ignore
+                with _ -> ()
+
+                let columns = 
+                    [ for c in colData -> 
+                          c.HiveName + " " + HiveSchema.formatHiveType c.HiveType + 
+                          " COMMENT 'The column " + c.HiveName + " in the table " + targetTableName + " " + HiveSchema.formatHiveComment c.IsRequired + "'" 
+                    ] 
+                    |> String.concat ","
+
                 hqCtxt.ExecuteCommand("CREATE TABLE " + targetTableName + "(" + columns + ")", ?timeout=hqTimeout) |> ignore
-                // We leave the query results as non-SI units because we are writing the results directly
-                // to a non-SI distributed table annotated with non-SI metadata.
-                let queryText = HiveSchema.formatQuery HiveQueryUnitSystem.NonSI hqQueryData
+                let queryText = HiveSchema.formatQuery hqQueryData
                 hqCtxt.ExecuteCommand("INSERT OVERWRITE TABLE " + targetTableName + " " + queryText, ?timeout=hqTimeout) |> ignore
                 let _tableName, colData = colDataOfQuery hqQueryData
                 hqCtxt, Table(targetTableName, colData), hqTail, None, hqAuxExprsF 
             else 
-                // We write the results using SI units because those are the types in the F# code
-                // and how they would appear as F# values, and the results are no longer annotated with 
-                // non-SI metadata.
-                let queryText = HiveSchema.formatQuery HiveQueryUnitSystem.SI hqQueryData
+                let queryText = HiveSchema.formatQuery hqQueryData
                 hqCtxt.ExecuteCommand("INSERT OVERWRITE " + (if mi.Name = "WriteDistributedFile" then "" else "LOCAL ") + "DIRECTORY '" + targetTableName + "' " + queryText, ?timeout=hqTimeout) |> ignore
                 hqCtxt, hqQueryData, hqTail, hqTimeout, hqAuxExprsF 
             
@@ -1713,8 +1579,7 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
                      (partitionKeys
                         |> List.map (fun (colName, colExpr, _colIsPartitionKey) -> 
                             let colExprConv = converter.ConvertExpression colExpr
-                            // We write using non-SI units since we're writing to a table stored as non-SI units
-                            let exprText = HiveSchema.formatExpr HiveQueryUnitSystem.NonSI colExprConv
+                            let exprText = HiveSchema.formatExpr colExprConv
                             colName + "=" + exprText)
                         |> String.concat ",") + 
                      ") "
@@ -1722,10 +1587,9 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
                 trueColArgs |> List.map (fun (colName, colExpr, _colIsPartitionKey) -> (colName, converter.ConvertExpression colExpr, isRequiredTy colExpr.Type)) 
                             |> List.toArray
             let hqQueryDataWithSelect = Select(hqQueryData, colExprs)
-            let command = if mi.Name = "InsertRows" then "INSERT" else "INSERT OVERWRITE" 
+            let command = if mi.Name = "InsertRows" || mi.Name = "InsertPartition" then "INSERT INTO" else "INSERT OVERWRITE" 
 
-            // We format the query using non-SI units since the table is stored using non-SI units
-            let queryText = HiveSchema.formatQuery HiveQueryUnitSystem.NonSI hqQueryDataWithSelect 
+            let queryText = HiveSchema.formatQuery hqQueryDataWithSelect 
             hqCtxt.ExecuteCommand(command + " TABLE " + targetTable + " " + partitionKeysText + queryText, ?timeout=hqTimeout) |> ignore
             hqCtxt, hqQueryData, hqTail, None, hqAuxExprsF 
 
@@ -1735,7 +1599,7 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
             let hqAuxExprs = hqAuxExprsF tableVar
             let tableName, colData = colDataOfQuery hqQueryData
             let converter = HiveExpressionTranslator(decodeQuery,hqCtxt, tableName, tableVar, colData, auxVars, hqAuxExprs, allowEvaluation=true)
-            let queryData = converter.FoldPredicates hqQueryData pred
+            let queryData = HiveQueryData.Where(hqQueryData, converter.ConvertExpression pred)
             hqCtxt, queryData, hqTail, hqTimeout, hqAuxExprsF
 
         // This recognizes for ... yield which may include additional 'let'. This arises whenever
@@ -1772,6 +1636,7 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
             let newAuxExprs = loop forLoopBodyNorm
             hqCtxt, hqQueryData, hqTail, hqTimeout, newAuxExprs
 
+#if GROUP_BY
         // This recognizes the 'groupBy ... into g' pattern
         | Call(_,mi2,[hq;Lambdas([tableVar::auxVars],keySelector)]) when mi2.Name = "GroupBy" -> 
             let hqCtxt, hqQueryData, hqTail, hqTimeout, hqAuxExprsF  = decodeQuery nestedTableOpt false hq
@@ -1780,6 +1645,7 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
             let converter = HiveExpressionTranslator(decodeQuery,hqCtxt, tableName, tableVar, colData, auxVars, hqAuxExprs, allowEvaluation=true)
             let groupKeyExpr = converter.ConvertExpression keySelector
             hqCtxt, HiveQueryData.GroupBy(hqQueryData, groupKeyExpr), hqTail, hqTimeout, (fun _ -> [])
+#endif
 
         // take numElements
         | Call(_,mi,[hq;nExpr]) when mi.Name = "Take" -> 
@@ -1871,8 +1737,6 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
                  // Only apply this optimiation for selections in 'tail' position which are actually
                  // about to produce in-memory objects.
                  canTail && 
-                 // Don't apply this optimiation when using unit annotations as transformations from Non-SI to SI may be needed.
-                 not hqCtxt.UseUnitAnnotations && 
                  // Check this is a simple selection.
                  isSimpleSelect hqQueryData && 
                  // We don't apply this optimization when there are nested queries in the result since they do not
@@ -2002,15 +1866,33 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
     /// Evaluate the sum of the given selection
     member inline __.SumByNullable<'T, ^Value when ^Value :> ValueType and ^Value : struct  and ^Value : (new : unit -> ^Value)  and ^Value : (static member ( + ) : ^Value * ^Value -> ^Value)  and  ^Value : (static member Zero : ^Value)>(source: HiveQueryable<'T>, [<ProjectionParameter>]valueSelector : 'T -> Nullable< ^Value >) : Nullable< ^Value >  = ignore (source,valueSelector); failwith "The 'sumByNullable' operator may only be executed on the server"
 
+#if GROUP_BY
+   // TODO: THis feature is close to working, for example:
+   //
+   // let query8 = hiveQuery {for line in context.sample_08 do
+   //                         where (line.total_emp ?> 1500) 
+   //                         groupBy line.total_emp into g
+   //                         select (g.Key,hiveQuery { for x in g do averageBy (float x.salary) })  }
+   //
+   // The problem is that the "groupBy" gets translated as "SELECT *, {group-selection-expr} FROM ... GROUP BY {key-expr}"
+   //
+   // The "*" here is intended to select the key - however it selects a subset of the columns and/or other expressions. This causes a mismatch between
+   // the expected and actual number and order of columns in the query.
+   //
+
     [<CustomOperation("groupBy",AllowIntoPattern=true)>] 
     /// Group the selection by the given key
     member __.GroupBy<'T,'Key when 'Key : equality> (source: HiveQueryable<'T>, [<ProjectionParameter>] keySelector:('T -> 'Key)) : HiveQueryable<HiveGrouping<'Key,'T>>  = ignore (source,keySelector); failwith "The 'groupBy' operator may only be executed on the server"
 
+    //member __.GroupValBy<'T,'Key,'Result, 'Q when 'Key : equality > (source:HiveQueryable<'T>, resultSelector: 'T -> 'Result, keySelector: 'T -> 'Key) : HiveQueryable<System.Linq.IGrouping<'Key,'Result>,'Q>   = 
+
+#endif
+
     [<CustomOperation("distinct",MaintainsVariableSpace=true,AllowIntoPattern=true)>] 
     /// Ensure the elements of the selection are distinct
     member __.Distinct<'T when 'T : equality>(source:HiveQueryable<'T>) : HiveQueryable<'T>  = ignore (source); failwith "The 'distinct' operator may only be executed on the server"
-    //member __.GroupValBy<'T,'Key,'Result, 'Q when 'Key : equality > (source:HiveQueryable<'T>, resultSelector: 'T -> 'Result, keySelector: 'T -> 'Key) : HiveQueryable<System.Linq.IGrouping<'Key,'Result>,'Q>   = 
 
+#if SORT_AND_JOIN_ON_HIVE_TABLES // NYI
     //member __.SortBy (source: HiveQueryable<'T>, keySelector : 'T -> 'Key) : HiveQueryable<'T> when 'Key : equality and 'Key : comparison  = 
     //member __.SortByDescending (source: HiveQueryable<'T>, keySelector : 'T -> 'Key) : HiveQueryable<'T> when 'Key : equality and 'Key : comparison  = 
     //member __.ThenBy (source: HiveQueryable<'T>, keySelector : 'T -> 'Key) : HiveQueryable<'T> when 'Key : equality and 'Key : comparison = 
@@ -2022,34 +1904,39 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
     //member __.Join  (outerSource: HiveQueryable<_,'Q>, innerSource: HiveQueryable<_,'Q>, outerKeySelector, innerKeySelector, elementSelector) : HiveQueryable<_,'Q> = 
     //member __.GroupJoin (outerSource: HiveQueryable<_,'Q>, innerSource: HiveQueryable<_,'Q>, outerKeySelector, innerKeySelector, elementSelector: _ ->  seq<_> -> _) : HiveQueryable<_,'Q> = 
     //member __.LeftOuterJoin (outerSource:HiveQueryable<_,'Q>, innerSource: HiveQueryable<_,'Q>, outerKeySelector, innerKeySelector, elementSelector: _ ->  seq<_> -> _) : HiveQueryable<_,'Q> = 
+#endif
 
     [<CustomOperation("writeRows", MaintainsVariableSpace = true)>]
-    /// Write to an existing table, overwriting any previous rows in the table 
+    /// Write to an existing table, overwriting any previous rows in the table. Use table.NewRow to specify a row.
     member __.WriteRows(source : HiveQueryable<'T>, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'T> = ignore (source,selector); failwith "The 'writeRows' operator may only be executed on the server"
 
 
     [<CustomOperation("writePartition", MaintainsVariableSpace = true)>]
-    /// Write to an existing partition, overwriting any previous rows in the partition
-    member __.WritePartition(source : HiveQueryable<'T>, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'T> = ignore (source,selector); failwith "The 'writeRows' operator may only be executed on the server"
+    /// Write to an existing partition, overwriting any previous rows in the partition. Use table.NewRow to specify a row. The partition keys must be not depend on the selection context.
+    member __.WritePartition(source : HiveQueryable<'T>, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'T> = ignore (source,selector); failwith "The 'writePartition' operator may only be executed on the server"
 
     [<CustomOperation("insertRows", MaintainsVariableSpace = true)>]
-    /// Insert new rows into an existing table
+    /// Insert new rows into an existing table.  Use table.NewRow to specify a row.
     member __.InsertRows(source : HiveQueryable<'T>, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'T> = ignore (source,selector); failwith "The 'insertRows' operator may only be executed on the server"
+
+    [<CustomOperation("insertPartition", MaintainsVariableSpace = true)>]
+    /// Insert new rows into an existing partition.  Use table.NewRow to specify a row. The partition keys must be not depend on the selection context.
+    member __.InsertPartition(source : HiveQueryable<'T>, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'T> = ignore (source,selector); failwith "The 'writePartition' operator may only be executed on the server"
+
 
     [<CustomOperation("newTable")>]
     /// Write new rows to a new intermediate table. Any previous table with this name is dropped and overwritten.
     member __.NewTable(source : HiveQueryable<'T>, tableName: string, [<ProjectionParameter>]selector : 'T -> 'U) : HiveTable<'U> = ignore (source, tableName, selector); failwith "The 'newTable' operator may only be executed on the server"
 
-    // Taken this out for now, it is not 'local' - it is on the head node - and the file doesn't
-    // actually seem to get written correctly.
+    // Taken this out for now - the file doesn't actually seem to get written correctly.
     //
-    // [<CustomOperation("writeLocalFile")>]
+    // [<CustomOperation("writeHeadNodeFile")>]
     // /// Write the new rows to a local file
-    // member __.WriteLocalFile(source : HiveQueryable<'T>, fileName: string, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'U> = ignore (source); failwith "The 'writeLocalFile' operator may only be executed on the server"
+    // member __.WriteHeadNodeFile(source : HiveQueryable<'T>, fileName: string, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'U> = ignore (source); failwith "The 'writeHeadNodeFile' operator may only be executed on the server"
 
     [<CustomOperation("writeDistributedFile", MaintainsVariableSpace = true)>]
     /// Write the selection to a distributed file
-    member __.WriteDistributedFile(source : HiveQueryable<'T>, fileName: string, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'T> = ignore (source,fileName,selector); failwith "The 'writeLocalFile' operator may only be executed on the server"
+    member __.WriteDistributedFile(source : HiveQueryable<'T>, fileName: string, [<ProjectionParameter>]selector : 'T -> 'U) : HiveQueryable<'T> = ignore (source,fileName,selector); failwith "The 'writeHeadNodeFile' operator may only be executed on the server"
 
     member __.Yield(_x:'T) : 'T = failwith "The 'yield' operator may only be executed on the server"
     member __.Quote() = ()
@@ -2079,41 +1966,6 @@ CREATE [EXTERNAL] TABLE [IF NOT EXISTS] [db_name.]table_name
             qCtxt.ExecuteQueryValue(qQueryData, ?timeout=qTimeout) |> unbox
 
 
-/// For unitized properties we must provide a method call GetColumnValueFromRow<float<kg>>(obj,string)
-/// However, units of measure can'T be used in MakeGenericMethod on the generic method info. Hence we 
-/// build our own provided method info that returns the right information. This could be generalized and placed
-/// in the ProvidedTypes api. The current implementation is approximate because it only works for the case where
-/// the return type is T and T is not used anywhere in the parameter types.
-//
-// CLEANUP: fold this into ProvidedTypes API
-type internal ProvidedApproxSymbolMethod(gmd: MethodInfo, returnType) =
-    inherit MethodInfo()
-
-    // Implement overloads
-    override this.GetParameters() = gmd.GetParameters()
-    override this.Attributes = gmd.Attributes
-    override this.Name = gmd.Name
-    override this.DeclaringType = gmd.DeclaringType
-    override this.IsDefined(attributeType, ``inherit``) = gmd.IsDefined(attributeType, ``inherit``)
-    override this.MemberType = gmd.MemberType
-    override this.CallingConvention = gmd.CallingConvention
-    override this.ReturnType = returnType
-    override this.ReturnParameter = null 
-    override this.ToString() = gmd.ToString()
-
-    override this.GetGenericMethodDefinition() = gmd
-    override this.GetGenericArguments() = [| returnType |]
-    override this.IsGenericMethod = true
-    override this.IsGenericMethodDefinition = false
-    override this.ReturnTypeCustomAttributes                           = gmd.ReturnTypeCustomAttributes
-    override this.GetBaseDefinition()                                  = gmd.GetBaseDefinition()
-    override this.GetMethodImplementationFlags()                       = gmd.GetMethodImplementationFlags()
-    override this.MethodHandle                                         = gmd.MethodHandle
-    override this.MetadataToken                                        = gmd.MetadataToken
-    override this.Invoke(obj,invokeAttr,binder,parameters,culture)     = gmd.Invoke(obj,invokeAttr,binder,parameters,culture)
-    override this.ReflectedType                                        = gmd.ReflectedType
-    override this.GetCustomAttributes(``inherit``)                     = gmd.GetCustomAttributes(``inherit``)
-    override this.GetCustomAttributes(attributeType, ``inherit``)      = gmd.GetCustomAttributes(attributeType, ``inherit``)
                                                                         
 [<TypeProvider>]
 type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this = 
@@ -2122,38 +1974,6 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
     let ns = "Hive"
 
     let asm = Assembly.GetExecutingAssembly()
-// This is interpreted by the preprocessor, which runs before the compiler itself.
-// Symbols of the conditional must be defined by the command line or in the project settings.
-#if UNITS_OF_MEASURE
-    /// Translate information about a unit of measure into F# unit type annotations
-    let rec translateUnit u =
-        match u with 
-        | Unit.SI s -> ProvidedMeasureBuilder.Default.SI s
-        | Unit.Prod(u1,u2) -> ProvidedMeasureBuilder.Default.Product (translateUnit u1, translateUnit u2)
-        | Unit.Div(u1,u2) -> ProvidedMeasureBuilder.Default.Ratio (translateUnit u1, translateUnit u2)
-        | Unit.One -> ProvidedMeasureBuilder.Default.One
-
-    /// Convert an AnyUnit into an SI Unit
-    let rec anyUnitToSI unit =
-        match unit with
-        | AnyUnit.Unknown r -> 
-            match r.Value with 
-            | None -> failwith "unknown unit of measure in Hive type (anyUnitToSI)"
-            | Some soln -> anyUnitToSI soln 
-        | AnyUnit.Unit unitString ->
-            let (measureAnnotation,_multiplier,_offset) = UnitsOfMeasure.unitSearch(unitString)
-            measureAnnotation
-        | AnyUnit.One -> Unit.One
-        | AnyUnit.Prod (u1,u2) -> Unit.Prod(anyUnitToSI u1, anyUnitToSI u2)
-        | AnyUnit.Inv u -> Unit.Div(Unit.One, anyUnitToSI u)
-
-    /// Add a unit of measure annotation to a type as an SI unit of measure
-    let unitize unit ty =
-        match anyUnitToSI unit with
-        | Unit.One -> ty
-        | u -> ProvidedMeasureBuilder.Default.AnnotateType(ty,[translateUnit u])
-
-#endif
     
     let memoizedFetcher paras req = HiveRequestInProcess paras req
     let memoizedGetTables = memoize (fun param -> memoizedFetcher(param)(GetTableNames))
@@ -2163,28 +1983,25 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
     let hiveTy = 
         let hiveTyped = ProvidedTypeDefinition(asm, ns, "HiveTypeProvider", Some(typeof<obj>), HideObjectMethods = true)
         let dsnArg = ProvidedStaticParameter("DSN", typeof<string>)
-        let unitsArg = ProvidedStaticParameter("UseUnitAnnotations", typeof<bool>,false)
         let reqArg   = ProvidedStaticParameter("UseRequiredAnnotations", typeof<bool>,true)
         let queryTimeoutArg  = ProvidedStaticParameter("DefaultQueryTimeout", typeof<int>, 60)
         let metadataTimeoutArg  = ProvidedStaticParameter("DefaultMetadataTimeout", typeof<int>, 5)
         let helpText = "<summary>Typed representation of the Hive Tables</summary>
                         <param name='DSN'>The ODBC DSN</param>
-                        <param name='UseUnitAnnotations'>Use units-of-measure annotations in Hive table descriptions to give annotated F# types (default: false). The annotation is, for example, '(unit=kg)' and must be at the end of the table description.</param>
-                        <param name='UseRequiredAnnotations'>Use 'required' annotations in Hive table descriptions to give annotated F# types (default: true). The annotation '(required)' must be at the end of the table description. If a unit annotation is also given, use '(unit=kg, required)'.</param>
+                        <param name='UseRequiredAnnotations'>Use 'required' annotations in Hive table descriptions to give annotated F# types (default: true). The annotation '(required)' must be at the end of the table description.</param>
                         <param name='DefaultQueryTimeout'>The timeout in seconds used when fetching metadata from the Hive ODBC service at compile-time, and the default timeout for accesses to the Hive ODBC service at runtime (default: 60 seconds).</param>
                         <param name='DefaultMetadataTimeout'>The timeout in seconds used when fetching metadata from the Hive ODBC service at compile-time, and the default timeout for accesses to the Hive ODBC service at runtime (default: 5 seconds).</param>"
 
         do hiveTyped.AddXmlDoc(helpText)
-        do hiveTyped.DefineStaticParameters([dsnArg;unitsArg;reqArg;queryTimeoutArg;metadataTimeoutArg], fun typeName providerArgs ->
-                let dsn,useUnitAnnotations,useRequiredAnnotations,queryTimeout,metadataTimeout = 
+        do hiveTyped.DefineStaticParameters([dsnArg; reqArg;queryTimeoutArg;metadataTimeoutArg], fun typeName providerArgs ->
+                let dsn, useRequiredAnnotations,queryTimeout,metadataTimeout = 
                     match providerArgs with 
                     | [| :? string as dsn;
-                         :? bool as useUnitAnnotations; 
                          :? bool as useRequiredAnnotations; 
                          :? int as queryTimeout; 
                          :? int as metadataTimeout
                       |]  -> 
-                        (dsn,useUnitAnnotations,useRequiredAnnotations,queryTimeout,metadataTimeout)
+                        (dsn, useRequiredAnnotations,queryTimeout,metadataTimeout)
                     | args -> 
                         failwithf "unexpected arguments to type provider, got %A" args
                 let queryTimeout = queryTimeout * 1<s>
@@ -2192,7 +2009,7 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
                 if String.IsNullOrWhiteSpace dsn then failwith "DSN is required" 
                 let param = (dsn,metadataTimeout)
 
-                let root = ProvidedTypeDefinition(asm, ns, typeName, baseType = Some typeof<obj>, HideObjectMethods = true) //smth about GetDataContext
+                let root = ProvidedTypeDefinition(asm, ns, typeName, baseType = Some typeof<obj>, HideObjectMethods = true) 
                 let containerForRowTypes = ProvidedTypeDefinition("DataTypes", baseType = Some typeof<obj>, HideObjectMethods = true) 
                 root.AddMember(containerForRowTypes)
                 let dataServiceType = ProvidedTypeDefinition("DataService", baseType = Some typeof<obj>, HideObjectMethods = true) 
@@ -2208,54 +2025,52 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
                             let rowType = ProvidedTypeDefinition(tableName, Some typeof<HiveDataRow>, HideObjectMethods = true) 
                             let tableColumnInfoLazy = 
                               lazy 
+
                                 let tableInfo = 
-                                    match memoizedGetTableSchema(param,(tableName,useUnitAnnotations)) with
+                                    match memoizedGetTableSchema(param,tableName) with
                                     | TableSchema(tableInfo) -> tableInfo
                                     | data -> RuntimeHelpers.unexpected "TableDescription" data
-                                let exactColumnTypes = 
+
+                                let fsharpColumnTypes = 
                                     [ for col in tableInfo.Columns do 
-                                        let erasedColumnTypeWithoutNullable = computeErasedTypeWithoutNullable(col.HiveType)
-                                        let exactColumnTypeWithoutNullable = 
-                                            if useUnitAnnotations then 
-                                                match col.HiveType with 
-                                                | _ -> erasedColumnTypeWithoutNullable // no units on integers, booleans or strings
-                                            else
-                                                erasedColumnTypeWithoutNullable
-                                        let exactColumnType = 
+                                        let fsharpColumnTypeWithoutNullable = computeFSharpTypeWithoutNullable(col.HiveType)
+                                        let fsharpColumnType = 
                                             // 'string' and other reference types are already nullable in .NET land
-                                            if (useRequiredAnnotations && col.IsRequired) || not exactColumnTypeWithoutNullable.IsValueType then 
-                                                exactColumnTypeWithoutNullable
+                                            if (useRequiredAnnotations && col.IsRequired) || not fsharpColumnTypeWithoutNullable.IsValueType then 
+                                                fsharpColumnTypeWithoutNullable
                                             else
-                                                ProvidedTypeBuilder.MakeGenericType(typedefof<Nullable<_>>, [ exactColumnTypeWithoutNullable ])
-                                        yield  exactColumnType ]
-                                (tableInfo, exactColumnTypes)
+                                                ProvidedTypeBuilder.MakeGenericType(typedefof<Nullable<_>>, [ fsharpColumnTypeWithoutNullable ])
+                                        yield  fsharpColumnType ]
+                                (tableInfo, fsharpColumnTypes)
 
                             rowType.AddMembersDelayed (fun () -> 
                                 let props = 
-                                    let tableInfo, exactColumnTypes = tableColumnInfoLazy.Force()
-                                    [ for col, exactColumnType in Seq.zip tableInfo.Columns exactColumnTypes do 
+                                    let tableInfo, fsharpColumnTypes = tableColumnInfoLazy.Force()
+                                    [ for col, fsharpColumnType in Seq.zip tableInfo.Columns fsharpColumnTypes do 
                                         let p = 
                                             ProvidedProperty
-                                                (propertyName = col.HiveName, propertyType = exactColumnType, IsStatic=false, 
+                                                (propertyName = col.HiveName, propertyType = fsharpColumnType, IsStatic=false, 
                                                  GetterCode= (fun args -> 
-                                                    let meth = ProvidedApproxSymbolMethod(HiveDataRow.GetValueMethodInfo, exactColumnType)
-                                                    let hqQueryData = Expr.Call(args.[0], meth, [Expr.Value(col.HiveName)])
+                                                    let meth = HiveDataRow.GetValueMethodInfo
+                                                    let meth2 = ProvidedTypeBuilder.MakeGenericMethod(meth, [ fsharpColumnType ])
+                                                    let hqQueryData = Expr.Call(args.[0], meth2, [Expr.Value(col.HiveName)])
                                                     hqQueryData))
                                         let colDesc = 
                                             if String.IsNullOrWhiteSpace col.Description || col.Description = "null"  then 
                                                 "The column " + col.HiveName + " in the table " + tableName + " in the Hive metastore." 
                                             else col.Description + "."
                                         let isPartitionKey = tableInfo.PartitionKeys |> Array.exists (fun x -> x = col.HiveName)
-                                        let isBucketKey = tableInfo.BucketKeys |> Array.exists (fun x -> x = col.HiveName)
-                                        let isSortKey = tableInfo.SortKeys |> Array.exists (fun x -> x.Column = col.HiveName)
+                                        //let isBucketKey = tableInfo.BucketKeys |> Array.exists (fun x -> x = col.HiveName)
+                                        //let isSortKey = tableInfo.SortKeys |> Array.exists (fun x -> x.Column = col.HiveName)
                                         let colDesc = colDesc + (if isPartitionKey then " The column is a partition key." else "")
-                                        let colDesc = colDesc + (if isBucketKey then " The column is a bucket key." else "")
-                                        let colDesc = colDesc + (if isSortKey then " The column is a sort key." else "")
+                                        //let colDesc = colDesc + (if isBucketKey then " The column is a bucket key." else "")
+                                        //let colDesc = colDesc + (if isSortKey then " The column is a sort key." else "")
                                         p.AddXmlDoc colDesc
                                         yield p  ]
                                 props)
                             let tableBaseType = typedefof<HiveTable<_>>.MakeGenericType [| (rowType :> System.Type) |]
                             let tableType = ProvidedTypeDefinition(tableName+"Table", Some tableBaseType, HideObjectMethods = true) 
+
                             tableType.AddMembersDelayed (fun () -> 
                                 let tableInfo, exactColumnTypes = tableColumnInfoLazy.Force()
                                 let ctorArgs = 
@@ -2292,7 +2107,7 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
                                 p.AddXmlDocDelayed(fun () -> 
                                     let tableInfo, _ = tableColumnInfoLazy.Force()
                                     let tableDesc,tableHead = 
-                                        match memoizedGetTableDescription(param,(tableName, useUnitAnnotations)) with
+                                        match memoizedGetTableDescription(param, tableName) with
                                         | TableDescription(tableDesc,tableHead) -> tableDesc,tableHead
                                         | Exception ex -> sprintf "table '%s'" tableName, sprintf "error %s" ex
                                         | data -> sprintf "table '%s'" tableName, sprintf "unexpected result %A" data
@@ -2301,6 +2116,7 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
                                         match tableInfo.PartitionKeys with 
                                         | [| |] -> "No partition keys."
                                         | keys -> "Partition keys: " + String.concat ", " keys + "."
+(*
                                     let tableBucketKeys = 
                                         match tableInfo.BucketKeys with 
                                         | [| |] -> "No bucket keys."
@@ -2309,20 +2125,10 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
                                         match tableInfo.SortKeys with 
                                         | [| |] -> "No sort keys."
                                         | keys -> "Sort keys: " + String.concat ", " (keys |> Array.map (fun x -> x.Column)) + "."
-                                    
+ *)                                   
                                     if tableDesc = "" 
                                     then tableName 
-                                    else                                    
-#if TSUNAMI
-                                            [|
-                                                yield (tableDesc.Replace("<para>","").Split([|"</para>"|], StringSplitOptions.RemoveEmptyEntries) |> String.concat "\n" |> fun x -> x + "\n") |> color Black
-                                                yield tableHead |> monospace
-                                            |] 
-                                            //|> Array.collect (fun x -> [|box tableHead;box br|])
-                                            |> tsunami
-#else
-                                            "todo - Visual Studio Docs"
-#endif
+                                    else "todo - Visual Studio Docs"
                                     )
 
                                 yield p ]
@@ -2336,7 +2142,7 @@ type HiveTypeProviderImplementation(_config: TypeProviderConfig) as this =
                                      ProvidedParameter("queryTimeout",typeof<int>,optionalValue=queryTimeout);
                                      ProvidedParameter("metadataTimeout",typeof<int>,optionalValue=metadataTimeout)    ],
                                     dataServiceType,
-                                    InvokeCode= (fun args -> <@@ new HiveDataContext((%%args.[0] : string),(%%args.[1] : int<s>),(%%args.[2] : int<s>) ,useUnitAnnotations) @@>),
+                                    InvokeCode= (fun args -> <@@ new HiveDataContext((%%args.[0] : string),(%%args.[1] : int<s>),(%%args.[2] : int<s>)) @@>),
                                     IsStaticMethod=true)
                 root.AddMembers [getDataContextMeth ]
                         

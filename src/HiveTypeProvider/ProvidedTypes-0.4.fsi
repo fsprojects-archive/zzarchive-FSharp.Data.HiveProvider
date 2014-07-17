@@ -322,7 +322,7 @@ type internal ProvidedTypeDefinition =
     member SuppressRelocation : bool  with get,set
 
 /// A provided generated assembly
-type ProvidedAssembly =
+type internal ProvidedAssembly =
     new : assemblyFileName:string -> ProvidedAssembly
     /// <summary>
     /// Emit the given provided type definitions as part of the assembly 

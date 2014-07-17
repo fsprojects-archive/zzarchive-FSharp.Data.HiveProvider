@@ -13,10 +13,10 @@ let githubLink = "http://github.com/fsprojects/FSharp.Data.HiveProvider"
 // Specify more information about your project
 let info =
   [ "project-name", "FSharp.Data.HiveProvider"
-    "project-author", "Your Name"
-    "project-summary", "A short summary of your project"
+    "project-author", "moloneymb"
+    "project-summary", "Easily query your Hive database in F# projects"
     "project-github", githubLink
-    "project-nuget", "<add later>" ]
+    "project-nuget", "FSharp.Data.HiveProvider" ]
 
 // --------------------------------------------------------------------------------------
 // For typical project, no changes are needed below
@@ -52,7 +52,7 @@ let output     = __SOURCE_DIRECTORY__ @@ "../output"
 let files      = __SOURCE_DIRECTORY__ @@ "../files"
 let templates  = __SOURCE_DIRECTORY__ @@ "templates"
 let formatting = __SOURCE_DIRECTORY__ @@ "../../packages/FSharp.Formatting.2.4.1/"
-let docTemplate = formatting @@ "templates/docpage.cshtml"
+let docTemplate = formatting @@ "templates//docpage.cshtml"
 
 // Where to look for *.csproj templates (in this order)
 let layoutRoots =
@@ -78,13 +78,14 @@ let buildReference () =
         publicOnly = true )
 
 // Build documentation from `fsx` and `md` files in `docs/content`
+let fsi = FsiEvaluator()
 let buildDocumentation () =
   let subdirs = Directory.EnumerateDirectories(content, "*", SearchOption.AllDirectories)
   for dir in Seq.append [content] subdirs do
     let sub = if dir.Length > content.Length then dir.Substring(content.Length + 1) else "."
     Literate.ProcessDirectory
       ( dir, docTemplate, output @@ sub, replacements = ("root", root)::info,
-        layoutRoots = layoutRoots )
+        layoutRoots = layoutRoots (*, fsiEvaluator = fsi*) )
 
 // Generate
 copyFiles()

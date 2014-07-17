@@ -1830,7 +1830,7 @@ type AssemblyGenerator(assemblyFileName) =
         assemblyBytes
 #endif
 
-type ProvidedAssembly(assemblyFileName: string) = 
+type internal ProvidedAssembly(assemblyFileName: string) = 
     let theTypes = ResizeArray<_>()
     let assemblyGenerator = AssemblyGenerator(assemblyFileName)
     let assemblyLazy = 

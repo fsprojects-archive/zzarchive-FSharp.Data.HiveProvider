@@ -3,10 +3,10 @@ open System.Reflection
 
 [<assembly: AssemblyTitleAttribute("FSharp.Data.HiveProvider")>]
 [<assembly: AssemblyProductAttribute("FSharp.Data.HiveProvider")>]
-[<assembly: AssemblyDescriptionAttribute("A short summary of your project.")>]
-[<assembly: AssemblyVersionAttribute("1.0")>]
-[<assembly: AssemblyFileVersionAttribute("1.0")>]
+[<assembly: AssemblyDescriptionAttribute("Easily query your Hive database in F# projects")>]
+[<assembly: AssemblyVersionAttribute("0.0.1")>]
+[<assembly: AssemblyFileVersionAttribute("0.0.1")>]
 do ()
 
 module internal AssemblyVersionInformation =
-    let [<Literal>] Version = "1.0"
+    let [<Literal>] Version = "0.0.1"
