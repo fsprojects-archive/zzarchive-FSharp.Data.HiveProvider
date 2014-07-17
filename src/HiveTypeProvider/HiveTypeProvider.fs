@@ -318,7 +318,7 @@ module internal DetailedTableDescriptionParser =
     /// Results of parsing the detailed table description
     [<RequireQualifiedAccess>]
     type Data = 
-        | Node of string * IDictionary<string,Data>
+        | DataNode of string * IDictionary<string,Data>
         | List of Data list
         | Value of string 
 
@@ -342,7 +342,7 @@ module internal DetailedTableDescriptionParser =
                                                 let! rest = oneOrMoreSep dataField ',' 
                                                 let! _ = char ')'
                                                 return rest })
-                 return (match rest with None -> Data.Value w | Some xs -> Data.Node(w,dict xs)) }
+                 return (match rest with None -> Data.Value w | Some xs -> Data.DataNode(w,dict xs)) }
         <|>
         parser { let! xs = dataList
                  return Data.List(xs) }
@@ -363,7 +363,7 @@ module internal DetailedTableDescriptionParser =
         parser { let! _ = char '{'
                  let! rest = zeroOrMoreSep recordField ',' 
                  let! _ = char '}'
-                 return Data.Node("Record",dict rest) }
+                 return Data.DataNode("Record",dict rest) }
 
     /// Parse a {...a=b...} field
     and recordField = 
@@ -491,12 +491,12 @@ module internal DetailedTableDescriptionParser =
     /// Get the partition keys out of the parsed detailed table description
     let getPartitionKeys r = 
        [| match r with 
-          | Data.Node("Table",d) ->
+          | Data.DataNode("Table",d) ->
               match d.TryGet "partitionKeys" with 
               | Some (Data.List d2) -> 
                   for v in d2 do 
                       match v with 
-                      | Data.Node("FieldSchema",d4) -> 
+                      | Data.DataNode("FieldSchema",d4) -> 
                             match (d4.TryGet "name", d4.TryGet "type", defaultArg (d4.TryGet "comment") (Data.Value "")) with 
                             | Some (Data.Value nm), Some (Data.Value typ), Data.Value comment -> 
                               yield {Name=nm; Type=parseHiveType typ; Comment=comment}
@@ -508,14 +508,14 @@ module internal DetailedTableDescriptionParser =
     /// Get the getFields out of the parsed detailed table description
     let getFields r = 
        [| match r with 
-          | Data.Node("Table",d) ->
+          | Data.DataNode("Table",d) ->
               match d.["sd"] with 
-              | Data.Node("StorageDescriptor",d2) ->
+              | Data.DataNode("StorageDescriptor",d2) ->
                  match d2.TryGet "cols" with 
                  | Some (Data.List cols) ->
                    for col in cols do 
                        match col with 
-                       | Data.Node("FieldSchema",d4) -> 
+                       | Data.DataNode("FieldSchema",d4) -> 
                            match (d4.TryGet "name", d4.TryGet "type", defaultArg (d4.TryGet "comment") (Data.Value "")) with 
                            | Some (Data.Value nm), Some (Data.Value typ), Data.Value comment -> 
                               yield {Name=nm; Type=parseHiveType typ; Comment=comment}
@@ -528,9 +528,9 @@ module internal DetailedTableDescriptionParser =
     /// Get the 'comment' field out of the parsed detailed table description
     let getComment r = 
         match r with 
-        | Data.Node("Table",d) ->
+        | Data.DataNode("Table",d) ->
             match d.TryGet "parameters" with 
-            | Some (Data.Node(_,d2)) ->
+            | Some (Data.DataNode(_,d2)) ->
                 match d2.TryGet "comment" with 
                 | Some (Data.Value comment) -> comment
                 | _ ->  ""
