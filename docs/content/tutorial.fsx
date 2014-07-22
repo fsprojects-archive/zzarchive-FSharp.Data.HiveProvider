@@ -1,10 +1,12 @@
 (*** hide ***)
 #I "../../bin"
-//context.DataContext.RequestSent.Add (fun data -> printfn "REQUEST: %s" data)
+
 //context.DataContext.ExecuteCommand("CREATE TABLE partition_sample (code STRING, description STRING, total_emp INT) PARTITIONED BY (salary INT)")
 //context.DataContext.ExecuteCommand("FROM sample_07 s INSERT INTO TABLE partition_sample PARTITION (salary=20000)
 //                                    SELECT s.code, s.description, s.total_emp WHERE s.salary < 20000")
 //context.partition_sample.GetSchema()
+//
+//hiveQuery { for row in context.sample_07 do}
 
 (**
 Tutorial: Building simple Hive queries
@@ -309,6 +311,3 @@ let (table2 : HiveTable<SchemaRecord>) = hive.GetTable("sample_07")
 hiveQuery { for row in table2 do
             where (row.Salary ?< 20000)
             select row.Description }
-
-
-

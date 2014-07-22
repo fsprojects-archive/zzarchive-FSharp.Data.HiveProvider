@@ -567,12 +567,12 @@ type internal OdbcDataServer(dsn:string,timeout:int<s>) =
             [| use reader = runReaderComand (sprintf "DESCRIBE extended %s" tableName) 
                        
                while reader.Read() && not (String.IsNullOrWhiteSpace (reader.GetString(0))) do 
-                    let colName = reader.GetString(0)
+                    let colName = reader.GetString(0).Trim()
                     // These are the 'simple' description of the table columns. If anything goes wrong
                     // with parsing the detailed description then we assume there are no partition
                     // keys and use the information extracted from the simple description instead.
-                    let datatype = parseHiveType (reader.GetString(1).ToLower())
-                    let desc = (if reader.IsDBNull(2) then "" else reader.GetString(2))
+                    let datatype = parseHiveType (reader.GetString(1).Trim().ToLower())
+                    let desc = (if reader.IsDBNull(2) then "" else reader.GetString(2).Trim())
                     yield (None,Some((colName, desc, datatype)),None)
 
                while reader.Read() && (reader.GetString(0) <> "Detailed Table Information") do 
