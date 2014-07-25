@@ -79,7 +79,7 @@ are accessible as provided types.</p>
 </tr>
 </table>
 
-<p>This allows us to see the raw requests sent to Hadoop.</p>
+<p>We can add a listener for the requests sent to Hive in order to inspect the raw translation of our queries.</p>
 
 <table class="pre"><tr><td class="lines"><pre class="fssnip">
 <span class="l">1: </span>
@@ -92,7 +92,7 @@ are accessible as provided types.</p>
 </table>
 
 <p>The schema of each table is brought into the program as types, which can be used within a <code>hiveQuery</code> 
-(similar to F# query expressions, but also supporting some Hive-specific operators). 
+(similar to F# query expressions, but also supporting Hive-specific operators). 
 The types are available through IntelliSense, making it easier to write exploratory queries.</p>
 
 <table class="pre"><tr><td class="lines"><pre class="fssnip">
@@ -490,7 +490,108 @@ prevent it from running from the F# script.</p>
 <pre lang="sql"><span class="k">INSERT</span> <span class="k">INTO</span> <span class="k">TABLE</span> high_income <span class="k">SELECT</span> code,description,total_emp,salary <span class="k">FROM</span> sample_07 <span class="k">WHERE</span> salary &lt; 20000
 <span class="k">SELECT</span> * <span class="k">FROM</span> sample_07 <span class="k">WHERE</span> salary &lt; 20000</pre>
 
-<h2><strong>[Bug]</strong> Accessing tables by name and manually applying a schema.</h2>
+<h2>Simple operations on partitioned tables</h2>
+
+<p>Since the Hortonworks Sandbox doesn't include any sample partitioned table, we will create a very simple one, only
+including two partitons. Although this doesn't accurately reflect an actual usage scenario, it will showcase the
+functionality made available through the type provider.</p>
+
+<p>First, we'll create the new table, having the same schema as <code>sample_07</code>, but partitioned by the <code>salary</code> column.</p>
+
+<table class="pre"><tr><td class="lines"><pre class="fssnip">
+<span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre>
+</td>
+<td class="snippet"><pre class="fssnip">
+<span onmouseout="hideTip(event, 'fs15', 227)" onmouseover="showTip(event, 'fs15', 227)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs17', 228)" onmouseover="showTip(event, 'fs17', 228)" class="i">DataContext</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs31', 229)" onmouseover="showTip(event, 'fs31', 229)" class="i">ExecuteCommand</span>(<span class="s">&quot;</span><span class="s">CREATE</span><span class="s"> </span><span class="s">TABLE</span><span class="s"> </span><span class="s">partition_sample</span><span class="s"> </span>
+<span class="s">                                    </span><span class="s">(</span><span class="s">code</span><span class="s"> </span><span class="s">STRING</span><span class="s">,</span><span class="s"> </span><span class="s">description</span><span class="s"> </span><span class="s">STRING</span><span class="s">,</span><span class="s"> </span><span class="s">total_emp</span><span class="s"> </span><span class="s">INT</span><span class="s">)</span><span class="s"> </span>
+<span class="s">                                    </span><span class="s">PARTITIONED</span><span class="s"> </span><span class="s">BY</span><span class="s"> </span><span class="s">(</span><span class="s">salary</span><span class="s"> </span><span class="s">INT</span><span class="s">)</span><span class="s">&quot;</span>)</pre>
+</td>
+</tr>
+</table>
+
+<p><em>Note:</em> After executing this, close and re-open the IDE in order to make the new table available within your script.</p>
+
+<table class="pre"><tr><td class="lines"><pre class="fssnip">
+<span class="l">1: </span>
+</pre>
+</td>
+<td class="snippet"><pre class="fssnip">
+<span onmouseout="hideTip(event, 'fs15', 230)" onmouseover="showTip(event, 'fs15', 230)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs82', 231)" onmouseover="showTip(event, 'fs82', 231)" class="i">partition_sample</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs83', 232)" onmouseover="showTip(event, 'fs83', 232)" class="i">GetSchema</span>()</pre>
+</td>
+</tr>
+</table>
+
+<p>Now, we will lump all the jobs in <code>sample_07</code> which have a salary below 20000 into the same partition in our newly created table,
+using <code>writePartition</code>. If the partition had already exited in the table, this would overwrite it. Note that we have to use 
+nullable types when setting the values in this table.</p>
+
+<table class="pre"><tr><td class="lines"><pre class="fssnip">
+<span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre>
+</td>
+<td class="snippet"><pre class="fssnip">
+<span onmouseout="hideTip(event, 'fs23', 233)" onmouseover="showTip(event, 'fs23', 233)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs24', 234)" onmouseover="showTip(event, 'fs24', 234)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs15', 235)" onmouseover="showTip(event, 'fs15', 235)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs25', 236)" onmouseover="showTip(event, 'fs25', 236)" class="i">sample_07</span> <span class="k">do</span>
+            <span onmouseout="hideTip(event, 'fs26', 237)" onmouseover="showTip(event, 'fs26', 237)" class="k">where</span> (<span onmouseout="hideTip(event, 'fs24', 238)" onmouseover="showTip(event, 'fs24', 238)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs27', 239)" onmouseover="showTip(event, 'fs27', 239)" class="i">salary</span> <span class="o">?&lt;=</span> <span class="n">20000</span>)
+            <span onmouseout="hideTip(event, 'fs84', 240)" onmouseover="showTip(event, 'fs84', 240)" class="k">writePartition</span> (<span onmouseout="hideTip(event, 'fs15', 241)" onmouseover="showTip(event, 'fs15', 241)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs82', 242)" onmouseover="showTip(event, 'fs82', 242)" class="i">partition_sample</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs85', 243)" onmouseover="showTip(event, 'fs85', 243)" class="i">NewRow</span>(<span onmouseout="hideTip(event, 'fs24', 244)" onmouseover="showTip(event, 'fs24', 244)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs81', 245)" onmouseover="showTip(event, 'fs81', 245)" class="i">code</span>, <span onmouseout="hideTip(event, 'fs24', 246)" onmouseover="showTip(event, 'fs24', 246)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs29', 247)" onmouseover="showTip(event, 'fs29', 247)" class="i">description</span>, <span onmouseout="hideTip(event, 'fs24', 248)" onmouseover="showTip(event, 'fs24', 248)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs45', 249)" onmouseover="showTip(event, 'fs45', 249)" class="i">total_emp</span>, <span onmouseout="hideTip(event, 'fs86', 250)" onmouseover="showTip(event, 'fs86', 250)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 251)" onmouseover="showTip(event, 'fs87', 251)" class="i">Nullable</span>(<span class="n">20000</span>))) }</pre>
+</td>
+</tr>
+</table>
+
+<p>We can do the same for the 20000-40000 bracket. The <code>insertPartition</code> operation does not overwrite a partition, adding the new
+rows to it instead. (Since we are creating a new partition, it doesn't make a difference in this case.)</p>
+
+<table class="pre"><tr><td class="lines"><pre class="fssnip">
+<span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+</pre>
+</td>
+<td class="snippet"><pre class="fssnip">
+<span onmouseout="hideTip(event, 'fs23', 252)" onmouseover="showTip(event, 'fs23', 252)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs24', 253)" onmouseover="showTip(event, 'fs24', 253)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs15', 254)" onmouseover="showTip(event, 'fs15', 254)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs25', 255)" onmouseover="showTip(event, 'fs25', 255)" class="i">sample_07</span> <span class="k">do</span>
+            <span onmouseout="hideTip(event, 'fs26', 256)" onmouseover="showTip(event, 'fs26', 256)" class="k">where</span> (<span onmouseout="hideTip(event, 'fs24', 257)" onmouseover="showTip(event, 'fs24', 257)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs27', 258)" onmouseover="showTip(event, 'fs27', 258)" class="i">salary</span> <span class="o">?&gt;</span> <span class="n">20000</span> <span class="o">&amp;&amp;</span> <span onmouseout="hideTip(event, 'fs24', 259)" onmouseover="showTip(event, 'fs24', 259)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs27', 260)" onmouseover="showTip(event, 'fs27', 260)" class="i">salary</span> <span class="o">?&lt;=</span> <span class="n">40000</span>)
+            <span onmouseout="hideTip(event, 'fs88', 261)" onmouseover="showTip(event, 'fs88', 261)" class="k">insertPartition</span> (<span onmouseout="hideTip(event, 'fs15', 262)" onmouseover="showTip(event, 'fs15', 262)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs82', 263)" onmouseover="showTip(event, 'fs82', 263)" class="i">partition_sample</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs85', 264)" onmouseover="showTip(event, 'fs85', 264)" class="i">NewRow</span>(<span onmouseout="hideTip(event, 'fs24', 265)" onmouseover="showTip(event, 'fs24', 265)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs81', 266)" onmouseover="showTip(event, 'fs81', 266)" class="i">code</span>, <span onmouseout="hideTip(event, 'fs24', 267)" onmouseover="showTip(event, 'fs24', 267)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs29', 268)" onmouseover="showTip(event, 'fs29', 268)" class="i">description</span>, <span onmouseout="hideTip(event, 'fs24', 269)" onmouseover="showTip(event, 'fs24', 269)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs45', 270)" onmouseover="showTip(event, 'fs45', 270)" class="i">total_emp</span>, <span onmouseout="hideTip(event, 'fs86', 271)" onmouseover="showTip(event, 'fs86', 271)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 272)" onmouseover="showTip(event, 'fs87', 272)" class="i">Nullable</span>(<span class="n">40000</span>))) }</pre>
+</td>
+</tr>
+</table>
+
+<p>Our table now has 2 partitions, as we can see by executing</p>
+
+<table class="pre"><tr><td class="lines"><pre class="fssnip">
+<span class="l">1: </span>
+</pre>
+</td>
+<td class="snippet"><pre class="fssnip">
+<span onmouseout="hideTip(event, 'fs15', 273)" onmouseover="showTip(event, 'fs15', 273)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs82', 274)" onmouseover="showTip(event, 'fs82', 274)" class="i">partition_sample</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs89', 275)" onmouseover="showTip(event, 'fs89', 275)" class="i">GetPartitionNames</span>()</pre>
+</td>
+</tr>
+</table>
+
+<p>We can query partitioned tables just like any other table.</p>
+
+<table class="pre"><tr><td class="lines"><pre class="fssnip">
+<span class="l">1: </span>
+<span class="l">2: </span>
+<span class="l">3: </span>
+<span class="l">4: </span>
+</pre>
+</td>
+<td class="snippet"><pre class="fssnip">
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs90', 276)" onmouseover="showTip(event, 'fs90', 276)" class="i">q</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs23', 277)" onmouseover="showTip(event, 'fs23', 277)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs91', 278)" onmouseover="showTip(event, 'fs91', 278)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs15', 279)" onmouseover="showTip(event, 'fs15', 279)" class="i">context</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs82', 280)" onmouseover="showTip(event, 'fs82', 280)" class="i">partition_sample</span> <span class="k">do</span>
+                    <span onmouseout="hideTip(event, 'fs26', 281)" onmouseover="showTip(event, 'fs26', 281)" class="k">where</span> (<span onmouseout="hideTip(event, 'fs91', 282)" onmouseover="showTip(event, 'fs91', 282)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs92', 283)" onmouseover="showTip(event, 'fs92', 283)" class="i">salary</span> <span class="o">?&lt;</span> <span class="n">30000</span>)
+                    <span onmouseout="hideTip(event, 'fs28', 284)" onmouseover="showTip(event, 'fs28', 284)" class="k">select</span> (<span onmouseout="hideTip(event, 'fs91', 285)" onmouseover="showTip(event, 'fs91', 285)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs93', 286)" onmouseover="showTip(event, 'fs93', 286)" class="i">description</span>, <span onmouseout="hideTip(event, 'fs91', 287)" onmouseover="showTip(event, 'fs91', 287)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs94', 288)" onmouseover="showTip(event, 'fs94', 288)" class="i">total_emp</span>)}
+<span onmouseout="hideTip(event, 'fs90', 289)" onmouseover="showTip(event, 'fs90', 289)" class="i">q</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs30', 290)" onmouseover="showTip(event, 'fs30', 290)" class="i">Run</span>()</pre>
+</td>
+</tr>
+</table>
+
+<hr />
+
+<h2>[NYI] Accessing tables by name and manually applying a schema</h2>
 
 <p><em>Since <code>HiveTable</code> no longer implements <code>IQueryable</code>, they cannot be used in F# query expressions
 and they are not yet supported in <code>hiveQuery</code> expressions.</em></p>
@@ -508,9 +609,9 @@ query gets executed on the client side.</p>
 </pre>
 </td>
 <td class="snippet"><pre class="fssnip">
-<span class="k">let</span> <span onmouseout="hideTip(event, 'fs82', 227)" onmouseover="showTip(event, 'fs82', 227)" class="i">timeout</span> <span class="o">=</span> <span class="n">5</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs83', 228)" onmouseover="showTip(event, 'fs83', 228)" class="i">s</span><span class="o">&gt;</span>
-<span class="k">let</span> <span onmouseout="hideTip(event, 'fs84', 229)" onmouseover="showTip(event, 'fs84', 229)" class="i">hive</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs1', 230)" onmouseover="showTip(event, 'fs1', 230)" class="i">Hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs2', 231)" onmouseover="showTip(event, 'fs2', 231)" class="i">HiveRuntime</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs85', 232)" onmouseover="showTip(event, 'fs85', 232)" class="i">HiveDataContext</span>(<span onmouseout="hideTip(event, 'fs12', 233)" onmouseover="showTip(event, 'fs12', 233)" class="i">dsn</span>, <span class="n">1000</span><span class="o">*</span><span onmouseout="hideTip(event, 'fs82', 234)" onmouseover="showTip(event, 'fs82', 234)" class="i">timeout</span>, <span class="n">1000</span><span class="o">*</span><span onmouseout="hideTip(event, 'fs82', 235)" onmouseover="showTip(event, 'fs82', 235)" class="i">timeout</span>)
-<span class="k">let</span> (<span onmouseout="hideTip(event, 'fs86', 236)" onmouseover="showTip(event, 'fs86', 236)" class="i">table</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs87', 237)" onmouseover="showTip(event, 'fs87', 237)" class="i">HiveTable</span><span class="o">&lt;</span>(<span onmouseout="hideTip(event, 'fs88', 238)" onmouseover="showTip(event, 'fs88', 238)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs88', 239)" onmouseover="showTip(event, 'fs88', 239)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs89', 240)" onmouseover="showTip(event, 'fs89', 240)" class="i">int</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs89', 241)" onmouseover="showTip(event, 'fs89', 241)" class="i">int</span>)<span class="o">&gt;</span>) <span class="o">=</span> <span onmouseout="hideTip(event, 'fs84', 242)" onmouseover="showTip(event, 'fs84', 242)" class="i">hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs90', 243)" onmouseover="showTip(event, 'fs90', 243)" class="i">GetTable</span>(<span class="s">&quot;</span><span class="s">sample_07</span><span class="s">&quot;</span>)</pre>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs95', 291)" onmouseover="showTip(event, 'fs95', 291)" class="i">timeout</span> <span class="o">=</span> <span class="n">5</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs96', 292)" onmouseover="showTip(event, 'fs96', 292)" class="i">s</span><span class="o">&gt;</span>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs97', 293)" onmouseover="showTip(event, 'fs97', 293)" class="i">hive</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs1', 294)" onmouseover="showTip(event, 'fs1', 294)" class="i">Hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs2', 295)" onmouseover="showTip(event, 'fs2', 295)" class="i">HiveRuntime</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs98', 296)" onmouseover="showTip(event, 'fs98', 296)" class="i">HiveDataContext</span>(<span onmouseout="hideTip(event, 'fs12', 297)" onmouseover="showTip(event, 'fs12', 297)" class="i">dsn</span>, <span class="n">1000</span><span class="o">*</span><span onmouseout="hideTip(event, 'fs95', 298)" onmouseover="showTip(event, 'fs95', 298)" class="i">timeout</span>, <span class="n">1000</span><span class="o">*</span><span onmouseout="hideTip(event, 'fs95', 299)" onmouseover="showTip(event, 'fs95', 299)" class="i">timeout</span>)
+<span class="k">let</span> (<span onmouseout="hideTip(event, 'fs99', 300)" onmouseover="showTip(event, 'fs99', 300)" class="i">table</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs100', 301)" onmouseover="showTip(event, 'fs100', 301)" class="i">HiveTable</span><span class="o">&lt;</span>(<span onmouseout="hideTip(event, 'fs101', 302)" onmouseover="showTip(event, 'fs101', 302)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs101', 303)" onmouseover="showTip(event, 'fs101', 303)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs102', 304)" onmouseover="showTip(event, 'fs102', 304)" class="i">int</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs102', 305)" onmouseover="showTip(event, 'fs102', 305)" class="i">int</span>)<span class="o">&gt;</span>) <span class="o">=</span> <span onmouseout="hideTip(event, 'fs97', 306)" onmouseover="showTip(event, 'fs97', 306)" class="i">hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs103', 307)" onmouseover="showTip(event, 'fs103', 307)" class="i">GetTable</span>(<span class="s">&quot;</span><span class="s">sample_07</span><span class="s">&quot;</span>)</pre>
 </td>
 </tr>
 </table>
@@ -526,15 +627,16 @@ Note that null values will be replaced by their default type value (0 in the cas
 </pre>
 </td>
 <td class="snippet"><pre class="fssnip">
-<span class="k">let</span> <span onmouseout="hideTip(event, 'fs91', 244)" onmouseover="showTip(event, 'fs91', 244)" class="i">query&#39;</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs23', 245)" onmouseover="showTip(event, 'fs23', 245)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs92', 246)" onmouseover="showTip(event, 'fs92', 246)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs86', 247)" onmouseover="showTip(event, 'fs86', 247)" class="i">table</span> <span class="k">do</span>
-                         <span onmouseout="hideTip(event, 'fs26', 248)" onmouseover="showTip(event, 'fs26', 248)" class="k">where</span> ((<span class="k">fun</span> (_, <span onmouseout="hideTip(event, 'fs93', 249)" onmouseover="showTip(event, 'fs93', 249)" class="i">description</span>, _, _) <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs93', 250)" onmouseover="showTip(event, 'fs93', 250)" class="i">description</span> <span class="o">=</span> <span class="s">&quot;</span><span class="s">Actors</span><span class="s">&quot;</span>) <span onmouseout="hideTip(event, 'fs92', 251)" onmouseover="showTip(event, 'fs92', 251)" class="i">row</span>)
-                         <span onmouseout="hideTip(event, 'fs28', 252)" onmouseover="showTip(event, 'fs28', 252)" class="k">select</span> <span onmouseout="hideTip(event, 'fs92', 253)" onmouseover="showTip(event, 'fs92', 253)" class="i">row</span>}
-<span onmouseout="hideTip(event, 'fs91', 254)" onmouseover="showTip(event, 'fs91', 254)" class="i">query&#39;</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs30', 255)" onmouseover="showTip(event, 'fs30', 255)" class="i">Run</span>()</pre>
+<span class="k">let</span> <span onmouseout="hideTip(event, 'fs104', 308)" onmouseover="showTip(event, 'fs104', 308)" class="i">query&#39;</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs23', 309)" onmouseover="showTip(event, 'fs23', 309)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs105', 310)" onmouseover="showTip(event, 'fs105', 310)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs99', 311)" onmouseover="showTip(event, 'fs99', 311)" class="i">table</span> <span class="k">do</span>
+                         <span onmouseout="hideTip(event, 'fs26', 312)" onmouseover="showTip(event, 'fs26', 312)" class="k">where</span> ((<span class="k">fun</span> (_, <span onmouseout="hideTip(event, 'fs106', 313)" onmouseover="showTip(event, 'fs106', 313)" class="i">description</span>, _, _) <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs106', 314)" onmouseover="showTip(event, 'fs106', 314)" class="i">description</span> <span class="o">=</span> <span class="s">&quot;</span><span class="s">Actors</span><span class="s">&quot;</span>) <span onmouseout="hideTip(event, 'fs105', 315)" onmouseover="showTip(event, 'fs105', 315)" class="i">row</span>)
+                         <span onmouseout="hideTip(event, 'fs28', 316)" onmouseover="showTip(event, 'fs28', 316)" class="k">select</span> <span onmouseout="hideTip(event, 'fs105', 317)" onmouseover="showTip(event, 'fs105', 317)" class="i">row</span>}
+<span onmouseout="hideTip(event, 'fs104', 318)" onmouseover="showTip(event, 'fs104', 318)" class="i">query&#39;</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs30', 319)" onmouseover="showTip(event, 'fs30', 319)" class="i">Run</span>()</pre>
 </td>
 </tr>
 </table>
 
-<p>The result of this query will be:</p>
+<p>The result of this query will be: <em>)
+(</em> insert-output:query0</p>
 
 <p>where the null has been replaced by a 0. If this is not the desired behaviour, 
 it can be avoided by using <code>System.Nullable&lt;int&gt;</code> instead of the F# <code>int</code> type when
@@ -546,8 +648,8 @@ constructing the table schema.</p>
 </pre>
 </td>
 <td class="snippet"><pre class="fssnip">
-<span class="k">type</span> <span onmouseout="hideTip(event, 'fs94', 256)" onmouseover="showTip(event, 'fs94', 256)" class="i">NullableSchema</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs88', 257)" onmouseover="showTip(event, 'fs88', 257)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs88', 258)" onmouseover="showTip(event, 'fs88', 258)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs95', 259)" onmouseover="showTip(event, 'fs95', 259)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 260)" onmouseover="showTip(event, 'fs96', 260)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs89', 261)" onmouseover="showTip(event, 'fs89', 261)" class="i">int</span><span class="o">&gt;</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs95', 262)" onmouseover="showTip(event, 'fs95', 262)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 263)" onmouseover="showTip(event, 'fs96', 263)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs89', 264)" onmouseover="showTip(event, 'fs89', 264)" class="i">int</span><span class="o">&gt;</span>
-<span class="k">let</span> (<span onmouseout="hideTip(event, 'fs97', 265)" onmouseover="showTip(event, 'fs97', 265)" class="i">table&#39;</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs87', 266)" onmouseover="showTip(event, 'fs87', 266)" class="i">HiveTable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs94', 267)" onmouseover="showTip(event, 'fs94', 267)" class="i">NullableSchema</span><span class="o">&gt;</span>) <span class="o">=</span> <span onmouseout="hideTip(event, 'fs84', 268)" onmouseover="showTip(event, 'fs84', 268)" class="i">hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs90', 269)" onmouseover="showTip(event, 'fs90', 269)" class="i">GetTable</span>(<span class="s">&quot;</span><span class="s">sample_07</span><span class="s">&quot;</span>)</pre>
+<span class="k">type</span> <span onmouseout="hideTip(event, 'fs107', 320)" onmouseover="showTip(event, 'fs107', 320)" class="i">NullableSchema</span> <span class="o">=</span> <span onmouseout="hideTip(event, 'fs101', 321)" onmouseover="showTip(event, 'fs101', 321)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs101', 322)" onmouseover="showTip(event, 'fs101', 322)" class="i">string</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs86', 323)" onmouseover="showTip(event, 'fs86', 323)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 324)" onmouseover="showTip(event, 'fs87', 324)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs102', 325)" onmouseover="showTip(event, 'fs102', 325)" class="i">int</span><span class="o">&gt;</span> <span class="o">*</span> <span onmouseout="hideTip(event, 'fs86', 326)" onmouseover="showTip(event, 'fs86', 326)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 327)" onmouseover="showTip(event, 'fs87', 327)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs102', 328)" onmouseover="showTip(event, 'fs102', 328)" class="i">int</span><span class="o">&gt;</span>
+<span class="k">let</span> (<span onmouseout="hideTip(event, 'fs108', 329)" onmouseover="showTip(event, 'fs108', 329)" class="i">table&#39;</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs100', 330)" onmouseover="showTip(event, 'fs100', 330)" class="i">HiveTable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs107', 331)" onmouseover="showTip(event, 'fs107', 331)" class="i">NullableSchema</span><span class="o">&gt;</span>) <span class="o">=</span> <span onmouseout="hideTip(event, 'fs97', 332)" onmouseover="showTip(event, 'fs97', 332)" class="i">hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs103', 333)" onmouseover="showTip(event, 'fs103', 333)" class="i">GetTable</span>(<span class="s">&quot;</span><span class="s">sample_07</span><span class="s">&quot;</span>)</pre>
 </td>
 </tr>
 </table>
@@ -562,9 +664,9 @@ nullable operators.</p>
 </pre>
 </td>
 <td class="snippet"><pre class="fssnip">
-<span onmouseout="hideTip(event, 'fs23', 270)" onmouseover="showTip(event, 'fs23', 270)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs98', 271)" onmouseover="showTip(event, 'fs98', 271)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs97', 272)" onmouseover="showTip(event, 'fs97', 272)" class="i">table&#39;</span> <span class="k">do</span>
-            <span onmouseout="hideTip(event, 'fs26', 273)" onmouseover="showTip(event, 'fs26', 273)" class="k">where</span> ((<span class="k">fun</span> (_, _, _, <span onmouseout="hideTip(event, 'fs99', 274)" onmouseover="showTip(event, 'fs99', 274)" class="i">salary</span>) <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs99', 275)" onmouseover="showTip(event, 'fs99', 275)" class="i">salary</span> <span class="o">?&lt;</span> <span class="n">20000</span>) <span onmouseout="hideTip(event, 'fs98', 276)" onmouseover="showTip(event, 'fs98', 276)" class="i">row</span>)
-            <span onmouseout="hideTip(event, 'fs28', 277)" onmouseover="showTip(event, 'fs28', 277)" class="k">select</span> <span onmouseout="hideTip(event, 'fs98', 278)" onmouseover="showTip(event, 'fs98', 278)" class="i">row</span>}</pre>
+<span onmouseout="hideTip(event, 'fs23', 334)" onmouseover="showTip(event, 'fs23', 334)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs109', 335)" onmouseover="showTip(event, 'fs109', 335)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs108', 336)" onmouseover="showTip(event, 'fs108', 336)" class="i">table&#39;</span> <span class="k">do</span>
+            <span onmouseout="hideTip(event, 'fs26', 337)" onmouseover="showTip(event, 'fs26', 337)" class="k">where</span> ((<span class="k">fun</span> (_, _, _, <span onmouseout="hideTip(event, 'fs110', 338)" onmouseover="showTip(event, 'fs110', 338)" class="i">salary</span>) <span class="k">-&gt;</span> <span onmouseout="hideTip(event, 'fs110', 339)" onmouseover="showTip(event, 'fs110', 339)" class="i">salary</span> <span class="o">?&lt;</span> <span class="n">20000</span>) <span onmouseout="hideTip(event, 'fs109', 340)" onmouseover="showTip(event, 'fs109', 340)" class="i">row</span>)
+            <span onmouseout="hideTip(event, 'fs28', 341)" onmouseover="showTip(event, 'fs28', 341)" class="k">select</span> <span onmouseout="hideTip(event, 'fs109', 342)" onmouseover="showTip(event, 'fs109', 342)" class="i">row</span>}</pre>
 </td>
 </tr>
 </table>
@@ -587,16 +689,16 @@ else remains unchanged in the example below.</p>
 </pre>
 </td>
 <td class="snippet"><pre class="fssnip">
-<span class="k">type</span> <span onmouseout="hideTip(event, 'fs100', 279)" onmouseover="showTip(event, 'fs100', 279)" class="i">SchemaRecord</span> <span class="o">=</span>
-    {<span onmouseout="hideTip(event, 'fs101', 280)" onmouseover="showTip(event, 'fs101', 280)" class="i">Code</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs88', 281)" onmouseover="showTip(event, 'fs88', 281)" class="i">string</span>;
-     <span onmouseout="hideTip(event, 'fs102', 282)" onmouseover="showTip(event, 'fs102', 282)" class="i">Description</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs88', 283)" onmouseover="showTip(event, 'fs88', 283)" class="i">string</span>;
-     <span onmouseout="hideTip(event, 'fs103', 284)" onmouseover="showTip(event, 'fs103', 284)" class="i">Total_Emp</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs95', 285)" onmouseover="showTip(event, 'fs95', 285)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 286)" onmouseover="showTip(event, 'fs96', 286)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs89', 287)" onmouseover="showTip(event, 'fs89', 287)" class="i">int</span><span class="o">&gt;</span>;
-     <span onmouseout="hideTip(event, 'fs104', 288)" onmouseover="showTip(event, 'fs104', 288)" class="i">Salary</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs95', 289)" onmouseover="showTip(event, 'fs95', 289)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs96', 290)" onmouseover="showTip(event, 'fs96', 290)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs89', 291)" onmouseover="showTip(event, 'fs89', 291)" class="i">int</span><span class="o">&gt;</span>;}
+<span class="k">type</span> <span onmouseout="hideTip(event, 'fs111', 343)" onmouseover="showTip(event, 'fs111', 343)" class="i">SchemaRecord</span> <span class="o">=</span>
+    {<span onmouseout="hideTip(event, 'fs112', 344)" onmouseover="showTip(event, 'fs112', 344)" class="i">Code</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs101', 345)" onmouseover="showTip(event, 'fs101', 345)" class="i">string</span>;
+     <span onmouseout="hideTip(event, 'fs113', 346)" onmouseover="showTip(event, 'fs113', 346)" class="i">Description</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs101', 347)" onmouseover="showTip(event, 'fs101', 347)" class="i">string</span>;
+     <span onmouseout="hideTip(event, 'fs114', 348)" onmouseover="showTip(event, 'fs114', 348)" class="i">Total_Emp</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs86', 349)" onmouseover="showTip(event, 'fs86', 349)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 350)" onmouseover="showTip(event, 'fs87', 350)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs102', 351)" onmouseover="showTip(event, 'fs102', 351)" class="i">int</span><span class="o">&gt;</span>;
+     <span onmouseout="hideTip(event, 'fs115', 352)" onmouseover="showTip(event, 'fs115', 352)" class="i">Salary</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs86', 353)" onmouseover="showTip(event, 'fs86', 353)" class="i">System</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs87', 354)" onmouseover="showTip(event, 'fs87', 354)" class="i">Nullable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs102', 355)" onmouseover="showTip(event, 'fs102', 355)" class="i">int</span><span class="o">&gt;</span>;}
 
-<span class="k">let</span> (<span onmouseout="hideTip(event, 'fs105', 292)" onmouseover="showTip(event, 'fs105', 292)" class="i">table2</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs87', 293)" onmouseover="showTip(event, 'fs87', 293)" class="i">HiveTable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs100', 294)" onmouseover="showTip(event, 'fs100', 294)" class="i">SchemaRecord</span><span class="o">&gt;</span>) <span class="o">=</span> <span onmouseout="hideTip(event, 'fs84', 295)" onmouseover="showTip(event, 'fs84', 295)" class="i">hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs90', 296)" onmouseover="showTip(event, 'fs90', 296)" class="i">GetTable</span>(<span class="s">&quot;</span><span class="s">sample_07</span><span class="s">&quot;</span>)
-<span onmouseout="hideTip(event, 'fs23', 297)" onmouseover="showTip(event, 'fs23', 297)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs106', 298)" onmouseover="showTip(event, 'fs106', 298)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs105', 299)" onmouseover="showTip(event, 'fs105', 299)" class="i">table2</span> <span class="k">do</span>
-            <span onmouseout="hideTip(event, 'fs26', 300)" onmouseover="showTip(event, 'fs26', 300)" class="k">where</span> (<span onmouseout="hideTip(event, 'fs106', 301)" onmouseover="showTip(event, 'fs106', 301)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs104', 302)" onmouseover="showTip(event, 'fs104', 302)" class="i">Salary</span> <span class="o">?&lt;</span> <span class="n">20000</span>)
-            <span onmouseout="hideTip(event, 'fs28', 303)" onmouseover="showTip(event, 'fs28', 303)" class="k">select</span> <span onmouseout="hideTip(event, 'fs106', 304)" onmouseover="showTip(event, 'fs106', 304)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs102', 305)" onmouseover="showTip(event, 'fs102', 305)" class="i">Description</span> }</pre>
+<span class="k">let</span> (<span onmouseout="hideTip(event, 'fs116', 356)" onmouseover="showTip(event, 'fs116', 356)" class="i">table2</span> <span class="o">:</span> <span onmouseout="hideTip(event, 'fs100', 357)" onmouseover="showTip(event, 'fs100', 357)" class="i">HiveTable</span><span class="o">&lt;</span><span onmouseout="hideTip(event, 'fs111', 358)" onmouseover="showTip(event, 'fs111', 358)" class="i">SchemaRecord</span><span class="o">&gt;</span>) <span class="o">=</span> <span onmouseout="hideTip(event, 'fs97', 359)" onmouseover="showTip(event, 'fs97', 359)" class="i">hive</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs103', 360)" onmouseover="showTip(event, 'fs103', 360)" class="i">GetTable</span>(<span class="s">&quot;</span><span class="s">sample_07</span><span class="s">&quot;</span>)
+<span onmouseout="hideTip(event, 'fs23', 361)" onmouseover="showTip(event, 'fs23', 361)" class="i">hiveQuery</span> { <span class="k">for</span> <span onmouseout="hideTip(event, 'fs117', 362)" onmouseover="showTip(event, 'fs117', 362)" class="i">row</span> <span class="k">in</span> <span onmouseout="hideTip(event, 'fs116', 363)" onmouseover="showTip(event, 'fs116', 363)" class="i">table2</span> <span class="k">do</span>
+            <span onmouseout="hideTip(event, 'fs26', 364)" onmouseover="showTip(event, 'fs26', 364)" class="k">where</span> (<span onmouseout="hideTip(event, 'fs117', 365)" onmouseover="showTip(event, 'fs117', 365)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs115', 366)" onmouseover="showTip(event, 'fs115', 366)" class="i">Salary</span> <span class="o">?&lt;</span> <span class="n">20000</span>)
+            <span onmouseout="hideTip(event, 'fs28', 367)" onmouseover="showTip(event, 'fs28', 367)" class="k">select</span> <span onmouseout="hideTip(event, 'fs117', 368)" onmouseover="showTip(event, 'fs117', 368)" class="i">row</span><span class="o">.</span><span onmouseout="hideTip(event, 'fs113', 369)" onmouseover="showTip(event, 'fs113', 369)" class="i">Description</span> }</pre>
 </td>
 </tr>
 </table>
@@ -682,31 +784,42 @@ else remains unchanged in the example below.</p>
 <div class="tip" id="fs79">val query13 : HiveQueryable&lt;Hive.HiveTypeProvider&lt;...&gt;.DataTypes.sample_07&gt;<br /><br />Full name: Tutorial.query13</div>
 <div class="tip" id="fs80">custom operation: insertRows (&#39;U)<br /><br />Calls HiveQueryBuilder.InsertRows </div>
 <div class="tip" id="fs81">property Hive.HiveTypeProvider&lt;...&gt;.DataTypes.sample_07.code: string<br /><em><br /><br />The column code in the table sample_07 in the Hive metastore.</em></div>
-<div class="tip" id="fs82">val timeout : int&lt;s&gt;<br /><br />Full name: Tutorial.timeout</div>
-<div class="tip" id="fs83">[&lt;Measure&gt;]<br />type s = Data.UnitSystems.SI.UnitNames.second<br /><br />Full name: Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.s</div>
-<div class="tip" id="fs84">val hive : HiveDataContext<br /><br />Full name: Tutorial.hive</div>
-<div class="tip" id="fs85">Multiple items<br />type HiveDataContext =<br />&#160;&#160;new : dsn:string * defaultQueryTimeout:int&lt;s&gt; * defaultMetadataTimeout:int&lt;s&gt; -&gt; HiveDataContext<br />&#160;&#160;member ExecuteCommand : command:string * ?timeout:int&lt;s&gt; -&gt; int<br />&#160;&#160;member private ExecuteQuery : queryData:HiveQueryData * rowType:Type * ?timeout:int&lt;s&gt; -&gt; seq&lt;obj&gt;<br />&#160;&#160;member private ExecuteQueryValue : queryData:HiveQueryData * ?timeout:int&lt;s&gt; -&gt; obj<br />&#160;&#160;member GetTable : tableName:string -&gt; HiveTable&lt;&#39;T&gt;<br />&#160;&#160;member GetTableDescription : tableName:string -&gt; string<br />&#160;&#160;member GetTableNames : unit -&gt; string []<br />&#160;&#160;member GetTablePartitionNames : tableName:string -&gt; string []<br />&#160;&#160;member GetTableSchema : tableName:string -&gt; HiveTableSchema<br />&#160;&#160;member GetTableUntyped : tableName:string -&gt; HiveTable&lt;HiveDataRow&gt;<br />&#160;&#160;...<br /><br />Full name: Hive.HiveRuntime.HiveDataContext<br /><br />--------------------<br />new : dsn:string * defaultQueryTimeout:int&lt;s&gt; * defaultMetadataTimeout:int&lt;s&gt; -&gt; HiveDataContext</div>
-<div class="tip" id="fs86">val table : HiveTable&lt;string * string * int * int&gt;<br /><br />Full name: Tutorial.table</div>
-<div class="tip" id="fs87">Multiple items<br />type HiveTable&lt;&#39;T&gt; =<br />&#160;&#160;inherit HiveQueryable&lt;&#39;T&gt;<br />&#160;&#160;interface IHiveTable<br />&#160;&#160;new : dataCtxt:HiveDataContext * tableName:string -&gt; HiveTable&lt;&#39;T&gt;<br />&#160;&#160;private new : dataCtxt:HiveDataContext * tableName:string * colData:HiveColumnSchema [] -&gt; HiveTable&lt;&#39;T&gt;<br />&#160;&#160;member GetPartitionNames : unit -&gt; string []<br />&#160;&#160;member GetSchema : unit -&gt; HiveTableSchema<br />&#160;&#160;member TableName : string<br /><br />Full name: Hive.HiveRuntime.HiveTable&lt;_&gt;<br /><br />--------------------<br />new : dataCtxt:HiveDataContext * tableName:string -&gt; HiveTable&lt;&#39;T&gt;</div>
-<div class="tip" id="fs88">Multiple items<br />val string : value:&#39;T -&gt; string<br /><br />Full name: Microsoft.FSharp.Core.Operators.string<br /><br />--------------------<br />type string = System.String<br /><br />Full name: Microsoft.FSharp.Core.string</div>
-<div class="tip" id="fs89">Multiple items<br />val int : value:&#39;T -&gt; int (requires member op_Explicit)<br /><br />Full name: Microsoft.FSharp.Core.Operators.int<br /><br />--------------------<br />type int = int32<br /><br />Full name: Microsoft.FSharp.Core.int<br /><br />--------------------<br />type int&lt;&#39;Measure&gt; = int<br /><br />Full name: Microsoft.FSharp.Core.int&lt;_&gt;</div>
-<div class="tip" id="fs90">member HiveDataContext.GetTable : tableName:string -&gt; HiveTable&lt;&#39;T&gt;</div>
-<div class="tip" id="fs91">val query&#39; : HiveQueryable&lt;string * string * int * int&gt;<br /><br />Full name: Tutorial.query&#39;</div>
-<div class="tip" id="fs92">val row : string * string * int * int</div>
-<div class="tip" id="fs93">val description : string</div>
-<div class="tip" id="fs94">type NullableSchema = string * string * System.Nullable&lt;int&gt; * System.Nullable&lt;int&gt;<br /><br />Full name: Tutorial.NullableSchema</div>
-<div class="tip" id="fs95">namespace System</div>
-<div class="tip" id="fs96">Multiple items<br />type Nullable =<br />&#160;&#160;static member Compare&lt;&#39;T&gt; : n1:Nullable&lt;&#39;T&gt; * n2:Nullable&lt;&#39;T&gt; -&gt; int<br />&#160;&#160;static member Equals&lt;&#39;T&gt; : n1:Nullable&lt;&#39;T&gt; * n2:Nullable&lt;&#39;T&gt; -&gt; bool<br />&#160;&#160;static member GetUnderlyingType : nullableType:Type -&gt; Type<br /><br />Full name: System.Nullable<br /><br />--------------------<br />type Nullable&lt;&#39;T (requires default constructor and value type and &#39;T :&gt; ValueType)&gt; =<br />&#160;&#160;struct<br />&#160;&#160;&#160;&#160;new : value:&#39;T -&gt; Nullable&lt;&#39;T&gt;<br />&#160;&#160;&#160;&#160;member Equals : other:obj -&gt; bool<br />&#160;&#160;&#160;&#160;member GetHashCode : unit -&gt; int<br />&#160;&#160;&#160;&#160;member GetValueOrDefault : unit -&gt; &#39;T + 1 overload<br />&#160;&#160;&#160;&#160;member HasValue : bool<br />&#160;&#160;&#160;&#160;member ToString : unit -&gt; string<br />&#160;&#160;&#160;&#160;member Value : &#39;T<br />&#160;&#160;end<br /><br />Full name: System.Nullable&lt;_&gt;<br /><br />--------------------<br />System.Nullable()<br />System.Nullable(value: &#39;T) : unit</div>
-<div class="tip" id="fs97">val table&#39; : HiveTable&lt;NullableSchema&gt;<br /><br />Full name: Tutorial.table&#39;</div>
-<div class="tip" id="fs98">val row : NullableSchema</div>
-<div class="tip" id="fs99">val salary : System.Nullable&lt;int&gt;</div>
-<div class="tip" id="fs100">type SchemaRecord =<br />&#160;&#160;{Code: string;<br />&#160;&#160;&#160;Description: string;<br />&#160;&#160;&#160;Total_Emp: Nullable&lt;int&gt;;<br />&#160;&#160;&#160;Salary: Nullable&lt;int&gt;;}<br /><br />Full name: Tutorial.SchemaRecord</div>
-<div class="tip" id="fs101">SchemaRecord.Code: string</div>
-<div class="tip" id="fs102">SchemaRecord.Description: string</div>
-<div class="tip" id="fs103">SchemaRecord.Total_Emp: System.Nullable&lt;int&gt;</div>
-<div class="tip" id="fs104">SchemaRecord.Salary: System.Nullable&lt;int&gt;</div>
-<div class="tip" id="fs105">val table2 : HiveTable&lt;SchemaRecord&gt;<br /><br />Full name: Tutorial.table2</div>
-<div class="tip" id="fs106">val row : SchemaRecord</div>
+<div class="tip" id="fs82">property Hive.HiveTypeProvider&lt;...&gt;.DataTypes.DataService.partition_sample: Hive.HiveTypeProvider&lt;...&gt;.DataTypes.partition_sampleTable<br /><em><br /><br />partition_sample</em></div>
+<div class="tip" id="fs83">member HiveTable.GetSchema : unit -&gt; HiveTableSchema</div>
+<div class="tip" id="fs84">custom operation: writePartition (&#39;U)<br /><br />Calls HiveQueryBuilder.WritePartition </div>
+<div class="tip" id="fs85">Hive.HiveTypeProvider&lt;...&gt;.DataTypes.partition_sampleTable.NewRow(?code: string, ?description: string, ?total_emp: System.Nullable&lt;int&gt;, ?salary: System.Nullable&lt;int&gt;) : Hive.HiveTypeProvider&lt;...&gt;.DataTypes.partition_sample</div>
+<div class="tip" id="fs86">namespace System</div>
+<div class="tip" id="fs87">Multiple items<br />type Nullable =<br />&#160;&#160;static member Compare&lt;&#39;T&gt; : n1:Nullable&lt;&#39;T&gt; * n2:Nullable&lt;&#39;T&gt; -&gt; int<br />&#160;&#160;static member Equals&lt;&#39;T&gt; : n1:Nullable&lt;&#39;T&gt; * n2:Nullable&lt;&#39;T&gt; -&gt; bool<br />&#160;&#160;static member GetUnderlyingType : nullableType:Type -&gt; Type<br /><br />Full name: System.Nullable<br /><br />--------------------<br />type Nullable&lt;&#39;T (requires default constructor and value type and &#39;T :&gt; ValueType)&gt; =<br />&#160;&#160;struct<br />&#160;&#160;&#160;&#160;new : value:&#39;T -&gt; Nullable&lt;&#39;T&gt;<br />&#160;&#160;&#160;&#160;member Equals : other:obj -&gt; bool<br />&#160;&#160;&#160;&#160;member GetHashCode : unit -&gt; int<br />&#160;&#160;&#160;&#160;member GetValueOrDefault : unit -&gt; &#39;T + 1 overload<br />&#160;&#160;&#160;&#160;member HasValue : bool<br />&#160;&#160;&#160;&#160;member ToString : unit -&gt; string<br />&#160;&#160;&#160;&#160;member Value : &#39;T<br />&#160;&#160;end<br /><br />Full name: System.Nullable&lt;_&gt;<br /><br />--------------------<br />System.Nullable()<br />System.Nullable(value: &#39;T) : unit</div>
+<div class="tip" id="fs88">custom operation: insertPartition (&#39;U)<br /><br />Calls HiveQueryBuilder.InsertPartition </div>
+<div class="tip" id="fs89">member HiveTable.GetPartitionNames : unit -&gt; string []</div>
+<div class="tip" id="fs90">val q : HiveQueryable&lt;string * System.Nullable&lt;int&gt;&gt;<br /><br />Full name: Tutorial.q</div>
+<div class="tip" id="fs91">val row : Hive.HiveTypeProvider&lt;...&gt;.DataTypes.partition_sample</div>
+<div class="tip" id="fs92">property Hive.HiveTypeProvider&lt;...&gt;.DataTypes.partition_sample.salary: System.Nullable&lt;int&gt;<br /><em><br /><br />The column salary in the table partition_sample in the Hive metastore. The column is a partition key.</em></div>
+<div class="tip" id="fs93">property Hive.HiveTypeProvider&lt;...&gt;.DataTypes.partition_sample.description: string<br /><em><br /><br />The column description in the table partition_sample in the Hive metastore.</em></div>
+<div class="tip" id="fs94">property Hive.HiveTypeProvider&lt;...&gt;.DataTypes.partition_sample.total_emp: System.Nullable&lt;int&gt;<br /><em><br /><br />The column total_emp in the table partition_sample in the Hive metastore.</em></div>
+<div class="tip" id="fs95">val timeout : int&lt;s&gt;<br /><br />Full name: Tutorial.timeout</div>
+<div class="tip" id="fs96">[&lt;Measure&gt;]<br />type s = Data.UnitSystems.SI.UnitNames.second<br /><br />Full name: Microsoft.FSharp.Data.UnitSystems.SI.UnitSymbols.s</div>
+<div class="tip" id="fs97">val hive : HiveDataContext<br /><br />Full name: Tutorial.hive</div>
+<div class="tip" id="fs98">Multiple items<br />type HiveDataContext =<br />&#160;&#160;new : dsn:string * defaultQueryTimeout:int&lt;s&gt; * defaultMetadataTimeout:int&lt;s&gt; -&gt; HiveDataContext<br />&#160;&#160;member ExecuteCommand : command:string * ?timeout:int&lt;s&gt; -&gt; int<br />&#160;&#160;member private ExecuteQuery : queryData:HiveQueryData * rowType:Type * ?timeout:int&lt;s&gt; -&gt; seq&lt;obj&gt;<br />&#160;&#160;member private ExecuteQueryValue : queryData:HiveQueryData * ?timeout:int&lt;s&gt; -&gt; obj<br />&#160;&#160;member GetTable : tableName:string -&gt; HiveTable&lt;&#39;T&gt;<br />&#160;&#160;member GetTableDescription : tableName:string -&gt; string<br />&#160;&#160;member GetTableNames : unit -&gt; string []<br />&#160;&#160;member GetTablePartitionNames : tableName:string -&gt; string []<br />&#160;&#160;member GetTableSchema : tableName:string -&gt; HiveTableSchema<br />&#160;&#160;member GetTableUntyped : tableName:string -&gt; HiveTable&lt;HiveDataRow&gt;<br />&#160;&#160;...<br /><br />Full name: Hive.HiveRuntime.HiveDataContext<br /><br />--------------------<br />new : dsn:string * defaultQueryTimeout:int&lt;s&gt; * defaultMetadataTimeout:int&lt;s&gt; -&gt; HiveDataContext</div>
+<div class="tip" id="fs99">val table : HiveTable&lt;string * string * int * int&gt;<br /><br />Full name: Tutorial.table</div>
+<div class="tip" id="fs100">Multiple items<br />type HiveTable&lt;&#39;T&gt; =<br />&#160;&#160;inherit HiveQueryable&lt;&#39;T&gt;<br />&#160;&#160;interface IHiveTable<br />&#160;&#160;new : dataCtxt:HiveDataContext * tableName:string -&gt; HiveTable&lt;&#39;T&gt;<br />&#160;&#160;private new : dataCtxt:HiveDataContext * tableName:string * colData:HiveColumnSchema [] -&gt; HiveTable&lt;&#39;T&gt;<br />&#160;&#160;member GetPartitionNames : unit -&gt; string []<br />&#160;&#160;member GetSchema : unit -&gt; HiveTableSchema<br />&#160;&#160;member TableName : string<br /><br />Full name: Hive.HiveRuntime.HiveTable&lt;_&gt;<br /><br />--------------------<br />new : dataCtxt:HiveDataContext * tableName:string -&gt; HiveTable&lt;&#39;T&gt;</div>
+<div class="tip" id="fs101">Multiple items<br />val string : value:&#39;T -&gt; string<br /><br />Full name: Microsoft.FSharp.Core.Operators.string<br /><br />--------------------<br />type string = System.String<br /><br />Full name: Microsoft.FSharp.Core.string</div>
+<div class="tip" id="fs102">Multiple items<br />val int : value:&#39;T -&gt; int (requires member op_Explicit)<br /><br />Full name: Microsoft.FSharp.Core.Operators.int<br /><br />--------------------<br />type int = int32<br /><br />Full name: Microsoft.FSharp.Core.int<br /><br />--------------------<br />type int&lt;&#39;Measure&gt; = int<br /><br />Full name: Microsoft.FSharp.Core.int&lt;_&gt;</div>
+<div class="tip" id="fs103">member HiveDataContext.GetTable : tableName:string -&gt; HiveTable&lt;&#39;T&gt;</div>
+<div class="tip" id="fs104">val query&#39; : HiveQueryable&lt;string * string * int * int&gt;<br /><br />Full name: Tutorial.query&#39;</div>
+<div class="tip" id="fs105">val row : string * string * int * int</div>
+<div class="tip" id="fs106">val description : string</div>
+<div class="tip" id="fs107">type NullableSchema = string * string * System.Nullable&lt;int&gt; * System.Nullable&lt;int&gt;<br /><br />Full name: Tutorial.NullableSchema</div>
+<div class="tip" id="fs108">val table&#39; : HiveTable&lt;NullableSchema&gt;<br /><br />Full name: Tutorial.table&#39;</div>
+<div class="tip" id="fs109">val row : NullableSchema</div>
+<div class="tip" id="fs110">val salary : System.Nullable&lt;int&gt;</div>
+<div class="tip" id="fs111">type SchemaRecord =<br />&#160;&#160;{Code: string;<br />&#160;&#160;&#160;Description: string;<br />&#160;&#160;&#160;Total_Emp: Nullable&lt;int&gt;;<br />&#160;&#160;&#160;Salary: Nullable&lt;int&gt;;}<br /><br />Full name: Tutorial.SchemaRecord</div>
+<div class="tip" id="fs112">SchemaRecord.Code: string</div>
+<div class="tip" id="fs113">SchemaRecord.Description: string</div>
+<div class="tip" id="fs114">SchemaRecord.Total_Emp: System.Nullable&lt;int&gt;</div>
+<div class="tip" id="fs115">SchemaRecord.Salary: System.Nullable&lt;int&gt;</div>
+<div class="tip" id="fs116">val table2 : HiveTable&lt;SchemaRecord&gt;<br /><br />Full name: Tutorial.table2</div>
+<div class="tip" id="fs117">val row : SchemaRecord</div>
 
         </div>
         <div class="span3">
