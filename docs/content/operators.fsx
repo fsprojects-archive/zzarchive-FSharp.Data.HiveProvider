@@ -25,7 +25,7 @@ fix them or submit a pull request to update the notes column.
 |  s.TrimEnd              |   RTRIM(s)                  |              |
 |  s.TrimStart            |   LTRIM(s)                  |              |
 | a && b                  |   a AND b                   |              |
-| a || b                  |   a OR b                    |              |
+| a ∣∣ b                 |   a OR b                    |              |
 | not a                   |   NOT a                     |              |
 | a + b                   |   a + b                     |              |
 | a - b                   |   a - b                     |              |

@@ -1,13 +1,10 @@
 (*** hide ***)
 #I "../../bin"
-
-//context.DataContext.ExecuteCommand("CREATE TABLE partition_sample (code STRING, description STRING, total_emp INT) PARTITIONED BY (salary INT)")
+//context.DataContext.ExecuteCommand("DROP TABLE partition_sample")
 //context.DataContext.ExecuteCommand("FROM sample_07 s INSERT INTO TABLE partition_sample PARTITION (salary=20000)
-//                                    SELECT s.code, s.description, s.total_emp WHERE s.salary < 20000")
-//context.partition_sample.GetSchema()
-//
-//hiveQuery { for row in context.sample_07 do}
-
+//                                    SELECT s.code, s.description, s.total_emp WHERE s.salary <= 20000")
+//context.DataContext.ExecuteCommand("FROM sample_07 s INSERT INTO TABLE partition_sample PARTITION (salary=40000)
+//                                    SELECT s.code, s.description, s.total_emp WHERE s.salary > 20000 AND s.salary <= 40000")
 (**
 Tutorial: Building simple Hive queries
 ========================
@@ -36,11 +33,11 @@ let dsn = "Sample Hortonworks Hive DSN; pwd=hadoop"
 type Conn = Hive.HiveTypeProvider<dsn, DefaultMetadataTimeout=1000>
 let context = Conn.GetDataContext()
 
-(** This allows us to see the raw requests sent to Hadoop. *)
+(** We can add a listener for the requests sent to Hive in order to inspect the raw translation of our queries.*)
 context.DataContext.RequestSent.Add(fun msg -> printf "REQUEST: %s" msg)
 (**
 The schema of each table is brought into the program as types, which can be used within a `hiveQuery` 
-(similar to F# query expressions, but also supporting some Hive-specific operators). 
+(similar to F# query expressions, but also supporting Hive-specific operators). 
 The types are available through IntelliSense, making it easier to write exploratory queries.
 *)
 let query = hiveQuery {for row in context.sample_07 do
@@ -257,7 +254,60 @@ The query gets translated into
     INSERT INTO TABLE high_income SELECT code,description,total_emp,salary FROM sample_07 WHERE salary < 20000
     SELECT * FROM sample_07 WHERE salary < 20000
 
-**[Bug]** Accessing tables by name and manually applying a schema. 
+
+Simple operations on partitioned tables
+----------------------------------------
+
+Since the Hortonworks Sandbox doesn't include any sample partitioned table, we will create a very simple one, only
+including two partitons. Although this doesn't accurately reflect an actual usage scenario, it will showcase the
+functionality made available through the type provider.
+
+First, we'll create the new table, having the same schema as `sample_07`, but partitioned by the `salary` column.
+*)
+context.DataContext.ExecuteCommand("CREATE TABLE partition_sample 
+                                    (code STRING, description STRING, total_emp INT) 
+                                    PARTITIONED BY (salary INT)")
+
+(**
+_Note:_ After executing this, close and re-open the IDE in order to make the new table available within your script.
+*)
+context.partition_sample.GetSchema()
+
+(**
+Now, we will lump all the jobs in `sample_07` which have a salary below 20000 into the same partition in our newly created table,
+using `writePartition`. If the partition had already exited in the table, this would overwrite it. Note that we have to use 
+nullable types when setting the values in this table.
+*)
+hiveQuery { for row in context.sample_07 do
+            where (row.salary ?<= 20000)
+            writePartition (context.partition_sample.NewRow(row.code, row.description, row.total_emp, System.Nullable(20000))) }
+(**
+We can do the same for the 20000-40000 bracket. The `insertPartition` operation does not overwrite a partition, adding the new
+rows to it instead. (Since we are creating a new partition, it doesn't make a difference in this case.)
+*)
+hiveQuery { for row in context.sample_07 do
+            where (row.salary ?> 20000 && row.salary ?<= 40000)
+            insertPartition (context.partition_sample.NewRow(row.code, row.description, row.total_emp, System.Nullable(40000))) }
+(** 
+Our table now has 2 partitions, as we can see by executing
+*)
+context.partition_sample.GetPartitionNames()
+
+(**
+We can query partitioned tables just like any other table.
+*)
+let q = hiveQuery { for row in context.partition_sample do
+                    where (row.salary ?< 30000)
+                    select (row.description, row.total_emp)}
+q.Run()
+
+
+(**
+-------------------
+
+
+
+[NYI] Accessing tables by name and manually applying a schema
 ------------------------------------
 _Since `HiveTable` no longer implements `IQueryable`, they cannot be used in F# query expressions
 and they are not yet supported in `hiveQuery` expressions._
@@ -281,6 +331,7 @@ let query' = hiveQuery { for row in table do
 query'.Run()
 
 (** The result of this query will be: *)
+(* insert-output:query0 *)
 
 (** where the null has been replaced by a 0. If this is not the desired behaviour, 
 it can be avoided by using `System.Nullable<int>` instead of the F# `int` type when
@@ -311,3 +362,4 @@ let (table2 : HiveTable<SchemaRecord>) = hive.GetTable("sample_07")
 hiveQuery { for row in table2 do
             where (row.Salary ?< 20000)
             select row.Description }
+

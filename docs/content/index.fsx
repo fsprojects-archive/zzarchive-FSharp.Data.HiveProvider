@@ -34,7 +34,7 @@ consider adding [samples][content] that can be turned into a documentation.
 
 The maintainers of this repository do not plan to add any other features. However, every
 pull request will be reviewed, so you are encouraged to contributed. Here is a list of
-[suggested contributions][sc]
+[suggested contributions][sc].
 
 The library is available under Public Domain license, which allows modification and 
 redistribution for both commercial and non-commercial purposes. For more information see the 
