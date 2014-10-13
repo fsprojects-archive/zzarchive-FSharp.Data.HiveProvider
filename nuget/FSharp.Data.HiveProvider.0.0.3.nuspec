@@ -5,9 +5,9 @@
     <version>0.0.3</version>
     <authors>moloneymb</authors>
     <owners>moloneymb</owners>
-    <licenseUrl>http://github.com/fsprojects/FSharp.Data.HiveProvider/blob/master/LICENSE.txt</licenseUrl>
-    <projectUrl>http://fsprojects.github.io/FSharp.Data.HiveProvider</projectUrl>
-    <iconUrl>https://raw.github.com/fsharp/FSharp.Data.HiveProvider/master/nuget/logo.png</iconUrl>
+    <licenseUrl>https://github.com/fsprojects/FSharp.Data.HiveProvider/blob/master/LICENSE.txt</licenseUrl>
+    <projectUrl>https://github.com/fsprojects/FSharp.Data.HiveProvider/</projectUrl>
+    <iconUrl>https://raw.githubusercontent.com/fsprojects/FSharp.Data.HiveProvider/master/docs/files/img/logo.png</iconUrl>
     <requireLicenseAcceptance>false</requireLicenseAcceptance>
     <summary>Easily query your Hive database in F# projects</summary>
     <description>  Easily query your Hive database in F# projects</description>
