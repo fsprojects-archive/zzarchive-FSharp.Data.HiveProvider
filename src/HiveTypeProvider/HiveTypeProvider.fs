@@ -427,10 +427,10 @@ module internal DetailedTableDescriptionParser =
     //(|ConstructedType|_|) "array"= Some("array", [])
     
     let rec parseHiveType (s:string) = 
-        match s with
+        match s.Trim() with
         | "float" -> DSingle 
         | "double" -> DDouble 
-        | "decimal" -> DDecimal 
+        | x when Regex.Match(x, @"decimal\s?(\([^\)]+\)\s?)?").Success -> DDecimal 
         | "string" -> DString
         | "int" -> DInt32 
         | "tinyint" -> DInt8
