@@ -34,7 +34,7 @@ let description = """
 // List of author names (for NuGet package)
 let authors = [ "moloneymb" ]
 // Tags for your project (for NuGet package)
-let tags = "fsharp typeprovider bigdata hive hadoop"
+let tags = "F# fsharp typeprovider bigdata hive hadoop"
 
 // File system information 
 // (<solutionFile>.sln is built during the building process)
