@@ -1,4 +1,7 @@
-FSharp.Data.HiveProvider
+[![Issue Stats](http://issuestats.com/github/fsprojects/FSharp.Data.HiveProvider/badge/issue)](http://issuestats.com/github/fsprojects/FSharp.Data.HiveProvider)
+[![Issue Stats](http://issuestats.com/github/fsprojects/FSharp.Data.HiveProvider/badge/pr)](http://issuestats.com/github/fsprojects/FSharp.Data.HiveProvider)
+
+FSharp.Data.HiveProvider [![NuGet Status](http://img.shields.io/nuget/v/FSharp.Data.HiveProvider.svg?style=flat)](https://www.nuget.org/packages/FSharp.Data.HiveProvider/)
 =======
 
 A demonstrator F# type provider for Apache Hive.
